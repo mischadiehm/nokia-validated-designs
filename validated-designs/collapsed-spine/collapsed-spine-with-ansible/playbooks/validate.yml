@@ -1,0 +1,45 @@
+---
+- name: Validate collapsed-spine SR Linux state
+  hosts: srl
+  gather_facts: false
+  roles:
+    - role: srl_validate
+
+- name: Validate collapsed-spine endpoint reachability
+  hosts: linux_clients
+  gather_facts: false
+  tasks:
+    - name: Run endpoint IPv4 ping checks
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: >-
+          ping -c 3
+          {{ ('-I ' ~ item.source) if item is mapping and item.source is defined else '' }}
+          {{ item.target if item is mapping else item }}
+      loop: "{{ endpoint_ipv4_ping_targets | default([]) }}"
+      register: endpoint_ipv4_ping
+      until: endpoint_ipv4_ping.rc == 0
+      retries: 5
+      delay: 3
+      changed_when: false
+
+    - name: Run endpoint IPv6 ping checks
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: >-
+          ping6 -c 3
+          {{ ('-I ' ~ item.source) if item is mapping and item.source is defined else '' }}
+          {{ item.target if item is mapping else item }}
+      loop: "{{ endpoint_ipv6_ping_targets | default([]) }}"
+      register: endpoint_ipv6_ping
+      until: endpoint_ipv6_ping.rc == 0
+      retries: 5
+      delay: 3
+      changed_when: false
+
+    - name: Validate s3 bond state
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: "cat /proc/net/bonding/bond0"
+      changed_when: false
+      when: inventory_hostname == "s3"

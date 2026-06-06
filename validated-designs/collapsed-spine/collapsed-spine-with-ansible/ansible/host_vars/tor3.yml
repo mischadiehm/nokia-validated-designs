@@ -1,0 +1,116 @@
+# Collapsed-spine Ansible intent. Keep readable; do not store rendered payloads here.
+srl_config:
+  set:
+    system:
+      name:
+        host-name: d3l-28-tor3
+      logging:
+        buffer:
+          log-buffer:
+            subsystem:
+              arpnd:
+                priority:
+                  match-above: informational
+              bfd:
+                priority:
+                  match-above: informational
+              bgp:
+                priority:
+                  match-above: informational
+              evpn:
+                priority:
+                  match-above: informational
+              lag:
+                priority:
+                  match-above: informational
+              lldp:
+                priority:
+                  match-above: informational
+              vxlan:
+                priority:
+                  match-above: informational
+      lldp:
+        interface:
+          ethernet-1/29:
+            admin-state: enable
+          ethernet-1/30:
+            admin-state: enable
+          ethernet-1/32:
+            admin-state: enable
+    interface:
+      ethernet-1/29:
+        description: tor3-spine-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+      ethernet-1/30:
+        description: tor3-spine-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+      ethernet-1/32:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '70':
+            type: bridged
+            description: tagged-v70-tor
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 70
+      lag1:
+        description: tor3-spine-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '70':
+            type: bridged
+            description: tagged-v70-tor
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 70
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 7
+            system-id-mac: 00:00:33:33:33:33
+            system-priority: 32768
+    network-instance:
+      v70-simple:
+        type: mac-vrf
+        admin-state: enable
+        description: v70-simple
+        interface:
+          ethernet-1/32.70: {}
+          lag1.70: {}
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+  delete:
+    system:
+      aaa:
+        authentication:
+          admin-user:
+            ssh-key: {}
+          linuxadmin-user:
+            ssh-key: {}

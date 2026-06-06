@@ -1,0 +1,12 @@
+---
+# Ansible collections required by the collapsed-spine-with-ansible variant.
+# Install with: uv run ansible-galaxy collection install -r requirements.yml
+collections:
+  - name: nokia.srlinux
+    version: "1.1.0"
+  - name: ansible.netcommon
+    version: "5.3.0"
+  - name: ansible.utils
+    version: "3.1.0"
+  - name: community.docker          # drive the Linux endpoints (s1..s6) via the clab runtime
+    version: "3.13.4"

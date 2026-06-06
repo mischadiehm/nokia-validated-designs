@@ -1,0 +1,26 @@
+# Collapsed-spine Ansible intent. Keep readable; do not store rendered payloads here.
+interfaces:
+  eth1.70:
+    vlan: 70
+    ipv4:
+    - 172.16.70.6/24
+    ipv6:
+    - 2001:db8:0:70::6/64
+bonds: {}
+routes:
+- family: ipv4
+  via: 172.16.70.254
+  dev: eth1.70
+  table: 70
+- family: ipv6
+  via: 2001:db8:0:70::254
+  dev: eth1.70
+  table: 70
+endpoint_ipv4_ping_targets:
+- 172.16.70.254
+- target: 172.16.10.1
+  source: 172.16.70.6
+endpoint_ipv6_ping_targets:
+- 2001:db8:0:70::254
+- target: 2001:db8:0:10::1
+  source: 2001:db8:0:70::6

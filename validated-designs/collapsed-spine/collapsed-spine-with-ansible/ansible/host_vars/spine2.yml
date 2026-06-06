@@ -1,0 +1,974 @@
+# Collapsed-spine Ansible intent. Keep readable; do not store rendered payloads here.
+srl_config:
+  set:
+    system:
+      name:
+        host-name: d3l-30-spine2
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    spine1-spine2-tor1-lag:
+                      admin-state: enable
+                      esi: 00:00:00:00:00:00:12:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag1
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
+                    spine1-spine2-tor2-lag:
+                      admin-state: enable
+                      esi: 00:00:00:00:00:12:00:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag2
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
+                    spine1-spine2-tor3-lag:
+                      admin-state: enable
+                      esi: 00:00:00:00:12:00:00:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag3
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
+                    spine1-spine2-tor4-lag:
+                      admin-state: enable
+                      esi: 00:00:00:12:00:00:00:00:00:00
+                      multi-homing-mode: single-active
+                      interface: lag4
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        interface-standby-signaling-on-non-df: true
+                        algorithm:
+                          type: preference
+                          preference-alg:
+                            preference-value: 500
+                            capabilities:
+                              non-revertive: true
+          bgp-vpn:
+            bgp-instance:
+              '1': {}
+      logging:
+        buffer:
+          log-buffer:
+            subsystem:
+              arpnd:
+                priority:
+                  match-above: informational
+              bfd:
+                priority:
+                  match-above: informational
+              bgp:
+                priority:
+                  match-above: informational
+              evpn:
+                priority:
+                  match-above: informational
+              lag:
+                priority:
+                  match-above: informational
+              lldp:
+                priority:
+                  match-above: informational
+              vxlan:
+                priority:
+                  match-above: informational
+      lldp:
+        interface:
+          ethernet-1/23:
+            admin-state: enable
+          ethernet-1/25:
+            admin-state: enable
+          ethernet-1/26:
+            admin-state: enable
+          ethernet-1/29:
+            admin-state: enable
+          ethernet-1/30:
+            admin-state: enable
+          ethernet-1/31:
+            admin-state: enable
+          ethernet-1/32:
+            admin-state: enable
+    routing-policy:
+      prefix-set:
+        prefixset-dc1-collapsed-spine:
+          prefix:
+            192.0.2.0/24:
+              mask-length-range: 32..32
+      policy:
+        ebgp-isl-export-policy-dc1-collapsed-spine:
+          default-action:
+            policy-result: reject
+          statement:
+            '10':
+              match:
+                protocol: local
+                prefix:
+                  prefix-set: prefixset-dc1-collapsed-spine
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '15':
+              match:
+                protocol: bgp
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '20':
+              match:
+                protocol: aggregate
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '25':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 1
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '30':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 2
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '35':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 3
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '40':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 4
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '45':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 5
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+        ebgp-isl-import-policy-dc1-collapsed-spine:
+          default-action:
+            policy-result: reject
+          statement:
+            '10':
+              match:
+                protocol: bgp
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '25':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 1
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '30':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 2
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '35':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 3
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '40':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 4
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '45':
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                      - 5
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+    interface:
+      ethernet-1/23:
+        description: spine1-spine2-tor4-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag4
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/25:
+        description: spine1-spine2-tor1-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/26:
+        description: spine1-spine2-tor2-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag2
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/29:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '10':
+            type: bridged
+            description: tagged-v10
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 10
+          '30':
+            type: bridged
+            description: tagged-v30
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 30
+          '100':
+            type: routed
+            description: spine2-ixia-1
+            admin-state: enable
+            ip-mtu: 9200
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.100.0/31:
+                  primary: true
+              arp:
+                timeout: 250
+            ipv6:
+              admin-state: enable
+              address:
+                2001:db8:0:100::/127:
+                  primary: true
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 100
+      ethernet-1/30:
+        description: spine1-spine2-tor3-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag3
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/31:
+        admin-state: enable
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv6:
+              admin-state: enable
+              router-advertisement:
+                router-role:
+                  admin-state: enable
+                  max-advertisement-interval: 10
+                  min-advertisement-interval: 4
+      ethernet-1/32:
+        admin-state: enable
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv6:
+              admin-state: enable
+              router-advertisement:
+                router-role:
+                  admin-state: enable
+                  max-advertisement-interval: 10
+                  min-advertisement-interval: 4
+      irb0:
+        subinterface:
+          '0':
+            description: irb-v30
+            ip-mtu: 9200
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.30.254/24:
+                  anycast-gw: true
+                  primary: true
+              arp:
+                timeout: 14400
+                learn-unsolicited: true
+                proxy-arp: true
+                evpn:
+                  advertise: dynamic
+            ipv6:
+              admin-state: enable
+              address:
+                2001:db8:0:30::254/64:
+                  anycast-gw: true
+                  primary: true
+              neighbor-discovery:
+                learn-unsolicited: both
+                proxy-nd: true
+                evpn:
+                  advertise: dynamic
+            anycast-gw:
+              virtual-router-id: 1
+          '1':
+            description: irb-v70
+            ip-mtu: 9200
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.70.254/24:
+                  anycast-gw: true
+                  primary: true
+              arp:
+                timeout: 14400
+                learn-unsolicited: true
+                proxy-arp: true
+                evpn:
+                  advertise: dynamic
+            ipv6:
+              admin-state: enable
+              address:
+                2001:db8:0:70::254/64:
+                  anycast-gw: true
+                  primary: true
+              neighbor-discovery:
+                learn-unsolicited: both
+                proxy-nd: true
+                evpn:
+                  advertise: dynamic
+            anycast-gw:
+              virtual-router-id: 1
+          '2':
+            description: irb-v50
+            ip-mtu: 9200
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.50.254/24:
+                  anycast-gw: true
+                  primary: true
+              arp:
+                timeout: 14400
+                learn-unsolicited: true
+                proxy-arp: true
+                evpn:
+                  advertise: dynamic
+            ipv6:
+              admin-state: enable
+              address:
+                2001:db8:0:50::254/64:
+                  anycast-gw: true
+                  primary: true
+              neighbor-discovery:
+                learn-unsolicited: both
+                proxy-nd: true
+                evpn:
+                  advertise: dynamic
+            anycast-gw:
+              virtual-router-id: 1
+          '4':
+            description: irb-v10
+            ip-mtu: 9200
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.10.254/24:
+                  anycast-gw: true
+                  primary: true
+              arp:
+                timeout: 250
+                learn-unsolicited: true
+                proxy-arp: true
+                evpn:
+                  advertise: dynamic
+            ipv6:
+              admin-state: enable
+              address:
+                2001:db8:0:10::254/64:
+                  anycast-gw: true
+                  primary: true
+              neighbor-discovery:
+                learn-unsolicited: both
+                proxy-nd: true
+                evpn:
+                  advertise: dynamic
+            anycast-gw:
+              virtual-router-id: 1
+          '5':
+            description: irb-v40
+            ip-mtu: 9200
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.40.254/24:
+                  anycast-gw: true
+                  primary: true
+              arp:
+                timeout: 14400
+                learn-unsolicited: true
+                proxy-arp: true
+                evpn:
+                  advertise: dynamic
+            ipv6:
+              admin-state: enable
+              address:
+                2001:db8:0:40::254/64:
+                  anycast-gw: true
+                  primary: true
+              neighbor-discovery:
+                learn-unsolicited: both
+                proxy-nd: true
+                evpn:
+                  advertise: dynamic
+            anycast-gw:
+              virtual-router-id: 1
+      lag1:
+        description: spine1-spine2-tor1-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '50':
+            type: bridged
+            description: tagged-v50
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 50
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 2
+            system-id-mac: 00:00:00:00:00:12
+            system-priority: 32768
+      lag2:
+        description: spine1-spine2-tor2-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            description: untagged-v10
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 3
+            system-id-mac: 00:00:00:00:12:00
+            system-priority: 32768
+      lag3:
+        description: spine1-spine2-tor3-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '70':
+            type: bridged
+            description: tagged-v70
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 70
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:00:12:00:00
+            system-priority: 32768
+      lag4:
+        description: spine1-spine2-tor4-lag
+        admin-state: enable
+        vlan-tagging: true
+        ethernet:
+          standby-signaling: lacp
+        subinterface:
+          '40':
+            type: bridged
+            description: tagged-v40
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 40
+          '4096':
+            type: bridged
+            description: untagged-v10
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 4
+            system-id-mac: 00:00:12:00:00:00
+            system-priority: 32768
+      system0:
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv4:
+              admin-state: enable
+              address: 192.0.2.1/32
+    network-instance:
+      default:
+        type: default
+        admin-state: enable
+        description: "fabric: dc1-collapsed-spine role: leaf"
+        router-id: 192.0.2.1
+        ip-forwarding:
+          receive-ipv4-check: false
+        interface:
+          ethernet-1/31.0: {}
+          ethernet-1/32.0: {}
+          system0.0: {}
+        protocols:
+          bgp:
+            admin-state: enable
+            autonomous-system: 65502
+            router-id: 192.0.2.1
+            dynamic-neighbors:
+              interface:
+                ethernet-1/31.0:
+                  peer-group: bgpgroup-ebgp-dc1-collapsed-spine
+                  allowed-peer-as:
+                    - 65501
+                ethernet-1/32.0:
+                  peer-group: bgpgroup-ebgp-dc1-collapsed-spine
+                  allowed-peer-as:
+                    - 65501
+            ebgp-default-policy:
+              import-reject-all: true
+              export-reject-all: true
+            afi-safi:
+              evpn:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 64
+                  ibgp:
+                    maximum-paths: 64
+                evpn:
+                  inter-as-vpn: true
+                  rapid-update: true
+              ipv4-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 2
+                  ibgp:
+                    maximum-paths: 2
+                ipv4-unicast:
+                  advertise-ipv6-next-hops: true
+                  receive-ipv6-next-hops: true
+                evpn:
+                  rapid-update: true
+              ipv6-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 2
+                  ibgp:
+                    maximum-paths: 2
+                evpn:
+                  rapid-update: true
+            preference:
+              ebgp: 170
+              ibgp: 170
+            route-advertisement:
+              rapid-withdrawal: true
+              wait-for-fib-install: false
+            group:
+              bgpgroup-ebgp-dc1-collapsed-spine:
+                admin-state: enable
+                export-policy:
+                  - ebgp-isl-export-policy-dc1-collapsed-spine
+                import-policy:
+                  - ebgp-isl-import-policy-dc1-collapsed-spine
+                failure-detection:
+                  enable-bfd: true
+                  fast-failover: true
+                afi-safi:
+                  evpn:
+                    admin-state: enable
+                  ipv4-unicast:
+                    admin-state: enable
+                    ipv4-unicast:
+                      advertise-ipv6-next-hops: true
+                      receive-ipv6-next-hops: true
+                  ipv6-unicast:
+                    admin-state: enable
+      macvrf-v10:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v10
+        interface:
+          ethernet-1/29.10: {}
+          irb0.4: {}
+          lag2.4096: {}
+          lag4.4096: {}
+        vxlan-interface: vxlan0.504
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.504
+                evi: 10
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:10
+                  import-rt: target:1:10
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+      macvrf-v30:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v30
+        interface:
+          ethernet-1/29.30: {}
+          irb0.0: {}
+        vxlan-interface: vxlan0.500
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.500
+                evi: 30
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:30
+                  import-rt: target:1:30
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+      macvrf-v40:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v40
+        interface:
+          irb0.5: {}
+          lag4.40: {}
+        vxlan-interface: vxlan0.505
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.505
+                evi: 40
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:40
+                  import-rt: target:1:40
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+      macvrf-v50:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v50
+        interface:
+          irb0.2: {}
+          lag1.50: {}
+        vxlan-interface: vxlan0.502
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.502
+                evi: 50
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:50
+                  import-rt: target:1:50
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+      macvrf-v70:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v70
+        interface:
+          irb0.1: {}
+          lag3.70: {}
+        vxlan-interface: vxlan0.501
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.501
+                evi: 70
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:70
+                  import-rt: target:1:70
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+      vrf1:
+        type: ip-vrf
+        admin-state: enable
+        description: vrf1
+        interface:
+          ethernet-1/29.100: {}
+          irb0.0: {}
+          irb0.1: {}
+          irb0.2: {}
+          irb0.4: {}
+          irb0.5: {}
+        vxlan-interface: vxlan0.506
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.506
+                evi: 500
+                ecmp: 8
+                routes:
+                  route-table:
+                    mac-ip:
+                      advertise-gateway-mac: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:500
+                  import-rt: target:1:500
+    bfd:
+      subinterface:
+        ethernet-1/31.0:
+          admin-state: enable
+          desired-minimum-transmit-interval: 1000000
+          required-minimum-receive: 1000000
+          detection-multiplier: 3
+          minimum-echo-receive-interval: 1000000
+        ethernet-1/32.0:
+          admin-state: enable
+          desired-minimum-transmit-interval: 1000000
+          required-minimum-receive: 1000000
+          detection-multiplier: 3
+          minimum-echo-receive-interval: 1000000
+    tunnel-interface:
+      vxlan0:
+        vxlan-interface:
+          '500':
+            type: bridged
+            ingress:
+              vni: 10030
+            egress:
+              source-ip: use-system-ipv4-address
+          '501':
+            type: bridged
+            ingress:
+              vni: 10070
+            egress:
+              source-ip: use-system-ipv4-address
+          '502':
+            type: bridged
+            ingress:
+              vni: 10050
+            egress:
+              source-ip: use-system-ipv4-address
+          '504':
+            type: bridged
+            ingress:
+              vni: 10010
+            egress:
+              source-ip: use-system-ipv4-address
+          '505':
+            type: bridged
+            ingress:
+              vni: 10040
+            egress:
+              source-ip: use-system-ipv4-address
+          '506':
+            type: routed
+            ingress:
+              vni: 10500
+            egress:
+              source-ip: use-system-ipv4-address
+  delete:
+    system:
+      aaa:
+        authentication:
+          admin-user:
+            ssh-key: {}
+          linuxadmin-user:
+            ssh-key: {}

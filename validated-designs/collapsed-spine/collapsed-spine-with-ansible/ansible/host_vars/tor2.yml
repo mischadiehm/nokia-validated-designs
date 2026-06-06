@@ -1,0 +1,112 @@
+# Collapsed-spine Ansible intent. Keep readable; do not store rendered payloads here.
+srl_config:
+  set:
+    system:
+      name:
+        host-name: d2l-35-tor2
+      logging:
+        buffer:
+          log-buffer:
+            subsystem:
+              arpnd:
+                priority:
+                  match-above: informational
+              bfd:
+                priority:
+                  match-above: informational
+              bgp:
+                priority:
+                  match-above: informational
+              evpn:
+                priority:
+                  match-above: informational
+              lag:
+                priority:
+                  match-above: informational
+              lldp:
+                priority:
+                  match-above: informational
+              vxlan:
+                priority:
+                  match-above: informational
+      lldp:
+        interface:
+          ethernet-1/51:
+            admin-state: enable
+          ethernet-1/52:
+            admin-state: enable
+          ethernet-1/56:
+            admin-state: enable
+    interface:
+      ethernet-1/51:
+        description: tor2-spine-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+      ethernet-1/52:
+        description: tor2-spine-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+      ethernet-1/56:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            description: untagged-v10-tor
+            admin-state: enable
+            vlan:
+              encap: untagged
+      lag1:
+        description: tor2-spine-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            description: untagged-v10-tor
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 6
+            system-id-mac: 00:00:22:22:22:22
+            system-priority: 32768
+    network-instance:
+      v10-simple:
+        type: mac-vrf
+        admin-state: enable
+        description: v10-simple
+        interface:
+          ethernet-1/56.4096: {}
+          lag1.4096: {}
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning
+  delete:
+    system:
+      aaa:
+        authentication:
+          admin-user:
+            ssh-key: {}
+          linuxadmin-user:
+            ssh-key: {}

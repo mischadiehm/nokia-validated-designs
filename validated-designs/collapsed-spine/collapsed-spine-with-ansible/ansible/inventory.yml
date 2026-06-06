@@ -1,0 +1,38 @@
+---
+# Static inventory for the collapsed-spine-with-ansible lab.
+# Mgmt IPs match 2-way-collapsed-spine.clab.yaml (mgmt subnet 172.21.21.0/24).
+# Containerlab also auto-generates clab-2-spine-collapsed/ansible-inventory.yml;
+# this static file is the source of truth for stable group_vars.
+all:
+  children:
+    srl:
+      vars:
+        ansible_connection: ansible.netcommon.httpapi
+        ansible_network_os: nokia.srlinux.srlinux
+        ansible_user: admin
+        ansible_password: "NokiaSrl1!"          # lab default; use vault for anything real
+        ansible_httpapi_use_ssl: true
+        ansible_httpapi_validate_certs: false    # self-signed lab certs
+        ansible_httpapi_port: 443
+      children:
+        collapsed_spines:
+          hosts:
+            spine1: { ansible_host: 172.21.21.101 }
+            spine2: { ansible_host: 172.21.21.102 }
+        tors:
+          hosts:
+            tor1: { ansible_host: 172.21.21.11 }
+            tor2: { ansible_host: 172.21.21.12 }
+            tor3: { ansible_host: 172.21.21.13 }
+    linux_clients:
+      # Driven through the Containerlab container runtime (docker exec).
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      hosts:
+        s1: { ansible_host: s1 }
+        s2: { ansible_host: s2 }
+        s3: { ansible_host: s3 }
+        s4: { ansible_host: s4 }
+        s5: { ansible_host: s5 }
+        s6: { ansible_host: s6 }

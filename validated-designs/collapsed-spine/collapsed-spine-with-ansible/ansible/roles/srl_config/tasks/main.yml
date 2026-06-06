@@ -1,0 +1,32 @@
+---
+- name: Build SR Linux payload from node vars
+  ansible.builtin.set_fact:
+    srl_config_payload: "{{ hostvars[inventory_hostname] | srl_payload }}"
+
+- name: Preflight SR Linux version
+  nokia.srlinux.cli:
+    commands:
+      - show version
+    output_format: text
+  register: srl_config_version
+
+- name: Assert SR Linux responded to preflight
+  ansible.builtin.assert:
+    that:
+      - srl_config_version is succeeded
+      - srl_config_version is defined
+    fail_msg: "SR Linux version preflight did not return successfully."
+
+- name: Validate SR Linux candidate payload
+  nokia.srlinux.validate:
+    update: "{{ srl_config_payload['update'] }}"
+    replace: "{{ srl_config_payload['replace'] }}"
+    delete: "{{ srl_config_payload['delete'] }}"
+
+- name: Apply SR Linux payload in one transaction
+  nokia.srlinux.config:
+    update: "{{ srl_config_payload['update'] }}"
+    replace: "{{ srl_config_payload['replace'] }}"
+    delete: "{{ srl_config_payload['delete'] }}"
+    save_when: "{{ srl_save_when | default('changed') }}"
+    confirm_timeout: "{{ srl_confirm_timeout | default(omit) }}"

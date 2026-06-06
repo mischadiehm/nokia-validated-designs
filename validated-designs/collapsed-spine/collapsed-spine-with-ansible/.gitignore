@@ -1,0 +1,4 @@
+.collections/
+.venv/
+*.egg-info/
+*.annotations.json
