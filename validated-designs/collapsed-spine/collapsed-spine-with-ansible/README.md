@@ -111,6 +111,8 @@ collapsed-spine-with-ansible/
   playbooks/
     deploy.yml
     validate.yml
+  tests/
+    test_srl_payload.py
 ```
 
 Read-only fidelity oracles:
@@ -285,6 +287,53 @@ docker ps --format '{{.Names}}' | sort
 rg -n '^prefix:|ansible_host: s[1-6]' 2-way-collapsed-spine.clab.yaml ansible/inventory.yml
 uv run ansible-playbook playbooks/validate.yml --limit 's3:spine1:spine2'
 ```
+
+## Intent Model: `set`, `replace`, `delete`
+
+Node vars in `host_vars/` are written as a readable tree under `srl_config`.
+The `srl_payload` filter (`ansible/filter_plugins/srl_payload.py`) turns that
+tree into native `nokia.srlinux.config` operations, and the device applies them
+in one transaction (deletes first, then replaces, then updates).
+
+You author intent with three buckets:
+
+| Bucket | Maps to | Meaning | "State module" equivalent |
+| --- | --- | --- | --- |
+| `set:` | `update` | Merge: add/modify only the leaves you list; undescribed config is left alone | `state: merged` |
+| `replace:` | `replace` | Replace the exact generated path; non-empty trees walk to leaf paths, while `{}` marks a container/list path | `state: replaced` at that path |
+| `delete:` | `delete` | Remove the targeted subtree (use `{}` to mark the point to prune) | `state: absent` |
+
+The Nokia module has no `state:` keyword; these operations are the equivalent.
+All three buckets are wired through the filter (`payload_from_config`) and the
+role, so choosing between them is purely a vars-authoring decision. The
+transformation is covered by unit tests in `tests/test_srl_payload.py`
+(run `uv run pytest`).
+
+How to think about it:
+
+- Use `set:` for normal additive intent. It is safe and non-destructive.
+- Use `delete:` to prune known config (for example the factory-default
+  `ssh-key: {}` placeholders).
+- Use `replace:` only when automation must be the single source of truth for a
+  generated path and should purge any local config below that path.
+
+Important: `replace` is **path-scoped**, not global. Replacing at
+`/interface[name=ethernet-1/55]/admin-state` replaces only that leaf. A
+non-empty readable tree such as `replace: {interface: {ethernet-1/55:
+{admin-state: enable}}}` generates that leaf path, not a whole-interface replace.
+Use `{}` only when the exact container/list path is the intended replace target,
+for example `replace: {interface: {ethernet-1/55: {}}}` generates
+`/interface[name=ethernet-1/55]` with an empty value. Replacing at the root would
+force the entire running config to match your vars. Avoid root-level replace on a
+live node — you must then declare every leaf the node needs (management
+network-instance, AAA, TLS profiles), or you can lock yourself out
+mid-transaction.
+
+This design deliberately uses `set:` plus targeted `delete:` rather than
+`replace:`. It keeps changes non-destructive on shared/lab nodes, prunes only
+known defaults explicitly, and avoids the burden of enumerating every required
+leaf. Reach for `replace:` only when the generated path is config this automation
+fully owns.
 
 ## Design Rules
 

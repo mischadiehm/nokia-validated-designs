@@ -4,3 +4,7 @@ clab-*
 # ignore clab bak files
 **/*.yaml.bak
 **/*.yml.bak
+
+# ignore Python bytecode
+**/__pycache__/
+*.pyc

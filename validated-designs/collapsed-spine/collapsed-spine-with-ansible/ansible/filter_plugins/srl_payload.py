@@ -1,5 +1,14 @@
-"""SR Linux payload filters for the collapsed-spine Ansible variant."""
+"""SR Linux payload filters for the collapsed-spine Ansible variant.
 
+This filter turns the readable ``srl_config`` tree authored in ``host_vars``
+into the native operation lists consumed by ``nokia.srlinux.config``
+(``update`` / ``replace`` / ``delete``). Keeping this transformation in a
+Python filter plugin (rather than Jinja2 templates) follows the Ansible good
+practice that structured-data transformation belongs in a plugin, not a
+template.
+"""
+
+from typing import Any
 
 RESOURCE_KEYS = ("update", "replace", "delete")
 
@@ -25,7 +34,12 @@ LIST_KEYS = {
 }
 
 
-def _is_keyed(tokens, index):
+def _is_keyed(tokens: list[str], index: int) -> bool:
+    """Return True when ``tokens[index]`` is a YANG keyed-list node.
+
+    A keyed-list node means the following token is the list key value and the
+    two must be rendered as ``node[key=value]`` rather than two path segments.
+    """
     token = tokens[index]
     if token not in LIST_KEYS or index + 1 >= len(tokens):
         return False
@@ -38,7 +52,8 @@ def _is_keyed(tokens, index):
     return True
 
 
-def _key_name(tokens, index):
+def _key_name(tokens: list[str], index: int) -> str:
+    """Return the YANG key-leaf name for the keyed-list node at ``index``."""
     if tokens[index] == "interface" and index >= 1 and tokens[index - 1] == "dynamic-neighbors":
         return "interface-name"
     if tokens[index] == "interface" and index >= 2 and tokens[index - 2] == "ethernet-segment":
@@ -48,7 +63,8 @@ def _key_name(tokens, index):
     return LIST_KEYS[tokens[index]]
 
 
-def path_from_tokens(tokens):
+def path_from_tokens(tokens: list[str]) -> str:
+    """Render accumulated dict keys into a gNMI-style SR Linux path string."""
     parts = []
     index = 0
     while index < len(tokens):
@@ -62,7 +78,13 @@ def path_from_tokens(tokens):
     return "/" + "/".join(parts)
 
 
-def _append_value(tokens, value, output):
+def _append_value(tokens: list[str], value: Any, output: list[dict]) -> None:
+    """Encode a leaf ``value`` at ``tokens`` into a ``{path, value}`` entry.
+
+    Handles the SR Linux leaf shapes that do not follow the simple
+    ``path + scalar`` rule (keyed addresses, presence leaves, EVPN advertise
+    route-types, boolean/zero coercion, etc.).
+    """
     if len(tokens) >= 2 and tokens[-2:] == ["vlan", "encap"] and value == "untagged":
         output.append({"path": path_from_tokens(tokens + ["untagged"]), "value": {}})
     elif len(tokens) >= 3 and tokens[-3] == "prefix" and tokens[-1] == "mask-length-range":
@@ -95,7 +117,8 @@ def _append_value(tokens, value, output):
         output.append({"path": path_from_tokens(tokens), "value": value})
 
 
-def _walk_set(node, tokens, output):
+def _walk_set(node: Any, tokens: list[str], output: list[dict]) -> None:
+    """Recurse a ``set``/``replace`` subtree, emitting ``{path, value}`` entries."""
     if not isinstance(node, dict):
         _append_value(tokens, node, output)
         return
@@ -106,7 +129,8 @@ def _walk_set(node, tokens, output):
         _walk_set(value, tokens + [key], output)
 
 
-def _walk_delete(node, tokens, output):
+def _walk_delete(node: Any, tokens: list[str], output: list[dict]) -> None:
+    """Recurse a ``delete`` subtree, emitting bare ``{path}`` entries."""
     if not isinstance(node, dict):
         return
     if not node and tokens:
@@ -116,14 +140,16 @@ def _walk_delete(node, tokens, output):
         _walk_delete(value, tokens + [key], output)
 
 
-def payload_from_config(config):
-    payload = {key: [] for key in RESOURCE_KEYS}
+def payload_from_config(config: dict) -> dict:
+    """Convert a ``srl_config`` tree into update/replace/delete operation lists."""
+    payload: dict[str, list] = {key: [] for key in RESOURCE_KEYS}
     _walk_set(config.get("set", {}), [], payload["update"])
+    _walk_set(config.get("replace", {}), [], payload["replace"])
     _walk_delete(config.get("delete", {}), [], payload["delete"])
     return payload
 
 
-def srl_payload(hostvars):
+def srl_payload(hostvars: dict) -> dict:
     """Return native nokia.srlinux.config payload lists from readable node vars."""
     config = hostvars.get("srl_config") or {}
     payload = payload_from_config(config)
