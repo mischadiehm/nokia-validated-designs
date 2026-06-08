@@ -1,0 +1,1486 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# dependencies = [
+#   "PyYAML>=6.0,<7",
+#   "rich>=13.7,<15",
+#   "typer>=0.12,<1",
+# ]
+# ///
+"""Generate data-plane ping traffic for Containerlab topologies."""
+
+from __future__ import annotations
+
+import ipaddress
+import re
+import select
+import shlex
+import subprocess
+import time
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Annotated, Any
+
+import typer
+import yaml
+from rich import box
+from rich.console import Console, Group
+from rich.live import Live
+from rich.table import Table
+
+
+FAMILIES = ("ipv4", "ipv6")
+NETWORK_TEST_SUFFIXES = (".network-test.yml", ".network-test.yaml")
+NETWORK_TEST_DIR = "network-tests"
+CLAB_SUFFIXES = (".clab.yaml", ".clab.yml")
+DASHBOARD_REFRESH_PER_SECOND = 1
+
+
+class TestMode(str, Enum):
+    gateways = "gateways"
+    hosts = "hosts"
+    all = "all"
+
+
+@dataclass(frozen=True)
+class EndpointAddress:
+    host: str
+    container: str
+    interface: str
+    family: str
+    ip: str
+    prefix: str
+    table: str | None
+    gateway: str | None
+    vlan: int | None
+
+
+@dataclass(frozen=True)
+class PingCase:
+    kind: str
+    family: str
+    source_host: str
+    source_container: str
+    source_interface: str
+    source_ip: str
+    target_host: str
+    target_interface: str | None
+    target_ip: str
+    source_table: str | None
+    target_table: str | None
+
+
+@dataclass(frozen=True)
+class RunDefaults:
+    test: TestMode
+    families: set[str]
+    count: int
+    timeout: int
+    sweep_interval: float
+    flow_interval: float
+
+
+@dataclass(frozen=True)
+class CaptureHint:
+    where: str
+    command: str
+
+
+@dataclass(frozen=True)
+class NetworkTestConfig:
+    path: Path
+    topology: Path | None
+    endpoints: dict[str, Any]
+    flows: dict[str, Any]
+    defaults: RunDefaults
+    capture_hints: list[CaptureHint]
+
+
+def get_console() -> Console:
+    detected_width = Console().size.width
+    return Console(highlight=False, emoji=False, width=max(detected_width, 140))
+
+
+def make_table(*columns: str, title: str | None = None) -> Table:
+    table = Table(title=title, box=box.ASCII, show_lines=False, header_style="bold")
+    for column in columns:
+        table.add_column(column, overflow="fold")
+    return table
+
+
+def load_yaml(path: Path) -> dict[str, Any]:
+    with path.open(encoding="utf-8") as handle:
+        data = yaml.safe_load(handle) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a YAML mapping")
+    return data
+
+
+def resolve_path(path: str | Path, base_dir: Path) -> Path:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate.resolve()
+    return (base_dir / candidate).resolve()
+
+
+def clab_base_name(topology: Path) -> str:
+    name = topology.name
+    for suffix in CLAB_SUFFIXES:
+        if name.endswith(suffix):
+            return name[: -len(suffix)]
+    return topology.stem
+
+
+def config_path_for_topology(topology: Path) -> Path:
+    return topology.parent / NETWORK_TEST_DIR / f"{clab_base_name(topology)}.yml"
+
+
+def find_one(candidates: list[Path], kind: str) -> Path | None:
+    if len(candidates) > 1:
+        names = ", ".join(str(path) for path in candidates)
+        raise ValueError(f"found multiple {kind} files; use --{kind}: {names}")
+    if not candidates:
+        return None
+    return candidates[0]
+
+
+def resolve_runtime_paths(
+    config: Path | None,
+    topology: Path | None,
+    cwd: Path,
+) -> tuple[Path, Path | None]:
+    if topology is not None:
+        resolved_topology = resolve_path(topology, cwd)
+        resolved_config = (
+            resolve_path(config, cwd) if config is not None else config_path_for_topology(resolved_topology)
+        )
+        return resolved_config, resolved_topology
+
+    if config is not None:
+        return resolve_path(config, cwd), None
+
+    topology_candidates = sorted(
+        path for suffix in CLAB_SUFFIXES for path in cwd.glob(f"*{suffix}")
+    )
+    detected_topology = find_one(topology_candidates, "topology")
+    if detected_topology is not None:
+        return config_path_for_topology(detected_topology), detected_topology
+
+    config_candidates = sorted(cwd.glob(f"{NETWORK_TEST_DIR}/*.yml")) + sorted(
+        cwd.glob(f"{NETWORK_TEST_DIR}/*.yaml")
+    )
+    config_candidates += sorted(
+        path for suffix in NETWORK_TEST_SUFFIXES for path in cwd.glob(f"*{suffix}")
+    )
+    detected_config = find_one(config_candidates, "config")
+    if detected_config is not None:
+        return detected_config, None
+
+    raise ValueError(
+        "no Containerlab topology or network-test config found; use --topology or --config"
+    )
+
+
+def parse_families(value: Any) -> set[str]:
+    if value is None:
+        return set(FAMILIES)
+    if isinstance(value, str):
+        families = {item.strip() for item in value.split(",") if item.strip()}
+    elif isinstance(value, list):
+        families = {str(item).strip() for item in value if str(item).strip()}
+    else:
+        raise ValueError("defaults.families must be a list or comma-separated string")
+
+    invalid = families - set(FAMILIES)
+    if invalid:
+        raise ValueError(f"invalid families: {', '.join(sorted(invalid))}")
+    if not families:
+        raise ValueError("at least one family is required")
+    return families
+
+
+def parse_defaults(raw_defaults: Any) -> RunDefaults:
+    if raw_defaults is None:
+        raw_defaults = {}
+    if not isinstance(raw_defaults, dict):
+        raise ValueError("defaults must be a mapping")
+
+    test = TestMode(str(raw_defaults.get("test", TestMode.all.value)))
+    count = int(raw_defaults.get("count", 1))
+    timeout = int(raw_defaults.get("timeout", 2))
+    sweep_interval = float(raw_defaults.get("sweep_interval", raw_defaults.get("interval", 30.0)))
+    flow_interval = float(raw_defaults.get("flow_interval", 1.0))
+
+    if count < 1:
+        raise ValueError("defaults.count must be >= 1")
+    if timeout < 1:
+        raise ValueError("defaults.timeout must be >= 1")
+    if sweep_interval <= 0:
+        raise ValueError("defaults.sweep_interval must be > 0")
+    if flow_interval <= 0:
+        raise ValueError("defaults.flow_interval must be > 0")
+
+    return RunDefaults(
+        test=test,
+        families=parse_families(raw_defaults.get("families")),
+        count=count,
+        timeout=timeout,
+        sweep_interval=sweep_interval,
+        flow_interval=flow_interval,
+    )
+
+
+def parse_capture_hints(raw_capture: Any) -> list[CaptureHint]:
+    if raw_capture is None:
+        return []
+    if not isinstance(raw_capture, dict):
+        raise ValueError("capture must be a mapping")
+
+    raw_hints = raw_capture.get("extra_hints", [])
+    if raw_hints is None:
+        return []
+    if not isinstance(raw_hints, list):
+        raise ValueError("capture.extra_hints must be a list")
+
+    hints: list[CaptureHint] = []
+    for index, raw_hint in enumerate(raw_hints, start=1):
+        if not isinstance(raw_hint, dict):
+            raise ValueError(f"capture.extra_hints[{index}] must be a mapping")
+        where = raw_hint.get("where")
+        command = raw_hint.get("command")
+        if not where or not command:
+            raise ValueError(f"capture.extra_hints[{index}] requires where and command")
+        hints.append(CaptureHint(where=str(where), command=str(command)))
+    return hints
+
+
+def load_network_test_config(
+    config_path: Path,
+    topology_override: Path | None,
+) -> NetworkTestConfig:
+    data = load_yaml(config_path)
+    base_dir = config_path.parent
+
+    raw_endpoints = data.get("endpoints")
+    if not isinstance(raw_endpoints, dict):
+        raise ValueError("network-test config requires endpoints mapping")
+
+    raw_flows = data.get("flows", {})
+    if raw_flows is None:
+        raw_flows = {}
+    if not isinstance(raw_flows, dict):
+        raise ValueError("flows must be a mapping")
+
+    topology = topology_override
+    if topology is None and data.get("topology") is not None:
+        topology = resolve_path(str(data["topology"]), base_dir)
+
+    return NetworkTestConfig(
+        path=config_path,
+        topology=topology,
+        endpoints=raw_endpoints,
+        flows=raw_flows,
+        defaults=parse_defaults(data.get("defaults")),
+        capture_hints=parse_capture_hints(data.get("capture")),
+    )
+
+
+def inventory_group_hosts(inventory: dict[str, Any], group: str) -> dict[str, str]:
+    def find_group(name: str, group_data: Any) -> dict[str, Any] | None:
+        if not isinstance(group_data, dict):
+            return None
+        if name == group:
+            return group_data
+        children = group_data.get("children", {})
+        if not isinstance(children, dict):
+            return None
+        for child_name, child_group in children.items():
+            found = find_group(str(child_name), child_group)
+            if found is not None:
+                return found
+        return None
+
+    root = inventory.get("all", {})
+    selected_group = root if group == "all" else find_group("all", root)
+    if selected_group is None:
+        raise ValueError(f"inventory does not define group {group!r}")
+
+    raw_hosts = selected_group.get("hosts", {})
+    if not isinstance(raw_hosts, dict) or not raw_hosts:
+        raise ValueError(f"inventory group {group!r} does not define hosts")
+
+    hosts: dict[str, str] = {}
+    for host, values in raw_hosts.items():
+        if isinstance(values, dict):
+            hosts[str(host)] = str(values.get("ansible_host", host))
+        else:
+            hosts[str(host)] = str(host)
+    return hosts
+
+
+def family_for_prefix(prefix: str) -> str:
+    interface = ipaddress.ip_interface(prefix)
+    return "ipv4" if interface.version == 4 else "ipv6"
+
+
+def address_from_prefix(prefix: str) -> str:
+    return str(ipaddress.ip_interface(prefix).ip)
+
+
+def load_ansible_host_vars_addresses(
+    source: dict[str, Any],
+    base_dir: Path,
+) -> list[EndpointAddress]:
+    inventory_path = resolve_path(str(source.get("inventory", "ansible/inventory.yml")), base_dir)
+    host_vars_dir = resolve_path(str(source.get("host_vars_dir", "ansible/host_vars")), base_dir)
+    group = str(source.get("group", "linux_clients"))
+
+    inventory = load_yaml(inventory_path)
+    hosts = inventory_group_hosts(inventory, group)
+    addresses: list[EndpointAddress] = []
+
+    for host, container in hosts.items():
+        host_vars = load_yaml(host_vars_dir / f"{host}.yml")
+        interfaces = host_vars.get("interfaces", {})
+        routes = host_vars.get("routes", [])
+
+        if not isinstance(interfaces, dict):
+            raise ValueError(f"{host}: interfaces must be a mapping")
+        if not isinstance(routes, list):
+            raise ValueError(f"{host}: routes must be a list")
+
+        route_index = {
+            (str(route.get("family")), str(route.get("dev"))): route
+            for route in routes
+            if isinstance(route, dict)
+        }
+
+        for interface, config in interfaces.items():
+            if not isinstance(config, dict):
+                raise ValueError(f"{host}: interface {interface} must be a mapping")
+
+            for family in FAMILIES:
+                prefixes = config.get(family, [])
+                if prefixes is None:
+                    continue
+                if not isinstance(prefixes, list):
+                    raise ValueError(f"{host}: {interface}.{family} must be a list")
+
+                route = route_index.get((family, str(interface)), {})
+                for prefix in prefixes:
+                    prefix_text = str(prefix)
+                    addresses.append(
+                        EndpointAddress(
+                            host=host,
+                            container=container,
+                            interface=str(interface),
+                            family=family_for_prefix(prefix_text),
+                            ip=address_from_prefix(prefix_text),
+                            prefix=prefix_text,
+                            table=str(route["table"]) if "table" in route else None,
+                            gateway=str(route["via"]) if "via" in route else None,
+                            vlan=config.get("vlan"),
+                        )
+                    )
+
+    return addresses
+
+
+def static_address_entries(interface_config: dict[str, Any]) -> list[dict[str, Any]]:
+    if "addresses" in interface_config:
+        raw_addresses = interface_config["addresses"]
+        if not isinstance(raw_addresses, list):
+            raise ValueError("static interface addresses must be a list")
+        entries: list[dict[str, Any]] = []
+        for item in raw_addresses:
+            if isinstance(item, str):
+                entries.append({"prefix": item})
+            elif isinstance(item, dict):
+                entries.append(item)
+            else:
+                raise ValueError("static address entries must be strings or mappings")
+        return entries
+
+    gateways = interface_config.get("gateways", {})
+    if gateways is None:
+        gateways = {}
+    if not isinstance(gateways, dict):
+        raise ValueError("static interface gateways must be a mapping")
+
+    table = interface_config.get("table")
+    entries = []
+    for family in FAMILIES:
+        raw_prefixes = interface_config.get(family, [])
+        if raw_prefixes is None:
+            continue
+        if not isinstance(raw_prefixes, list):
+            raise ValueError(f"static interface {family} addresses must be a list")
+        for prefix in raw_prefixes:
+            entries.append(
+                {
+                    "prefix": str(prefix),
+                    "gateway": gateways.get(family),
+                    "table": table,
+                }
+            )
+    return entries
+
+
+def load_static_addresses(endpoint_config: dict[str, Any]) -> list[EndpointAddress]:
+    hosts = endpoint_config.get("hosts", {})
+    if not isinstance(hosts, dict) or not hosts:
+        raise ValueError("static endpoints require endpoints.hosts")
+
+    addresses: list[EndpointAddress] = []
+    for host, host_config in hosts.items():
+        if not isinstance(host_config, dict):
+            raise ValueError(f"endpoint {host} must be a mapping")
+        container = str(host_config.get("container", host))
+        interfaces = host_config.get("interfaces", {})
+        if not isinstance(interfaces, dict):
+            raise ValueError(f"endpoint {host} interfaces must be a mapping")
+
+        for interface, interface_config in interfaces.items():
+            if not isinstance(interface_config, dict):
+                raise ValueError(f"endpoint {host} interface {interface} must be a mapping")
+            vlan = interface_config.get("vlan")
+            for entry in static_address_entries(interface_config):
+                prefix = str(entry.get("prefix", ""))
+                if not prefix:
+                    raise ValueError(f"endpoint {host} interface {interface} address requires prefix")
+                family = family_for_prefix(prefix)
+                addresses.append(
+                    EndpointAddress(
+                        host=str(host),
+                        container=container,
+                        interface=str(interface),
+                        family=family,
+                        ip=address_from_prefix(prefix),
+                        prefix=prefix,
+                        table=str(entry["table"]) if "table" in entry else None,
+                        gateway=str(entry["gateway"]) if entry.get("gateway") else None,
+                        vlan=vlan,
+                    )
+                )
+
+    return addresses
+
+
+def load_endpoint_addresses(
+    config_path: Path,
+    endpoint_config: dict[str, Any],
+) -> list[EndpointAddress]:
+    source = endpoint_config.get("source")
+    if source is None and "type" in endpoint_config:
+        source = endpoint_config
+
+    if source is not None:
+        if not isinstance(source, dict):
+            raise ValueError("endpoints.source must be a mapping")
+        source_type = str(source.get("type", "static"))
+        if source_type in {"ansible_host_vars", "ansible"}:
+            return load_ansible_host_vars_addresses(source, config_path.parent)
+        if source_type != "static":
+            raise ValueError(f"unsupported endpoint source type {source_type!r}")
+
+    return load_static_addresses(endpoint_config)
+
+
+def build_gateway_cases(addresses: list[EndpointAddress]) -> list[PingCase]:
+    cases: list[PingCase] = []
+    for source in addresses:
+        if not source.gateway:
+            continue
+        cases.append(
+            PingCase(
+                kind="gateway",
+                family=source.family,
+                source_host=source.host,
+                source_container=source.container,
+                source_interface=source.interface,
+                source_ip=source.ip,
+                target_host="gateway",
+                target_interface=None,
+                target_ip=source.gateway,
+                source_table=source.table,
+                target_table=source.table,
+            )
+        )
+    return cases
+
+
+def build_host_cases(addresses: list[EndpointAddress]) -> list[PingCase]:
+    cases: list[PingCase] = []
+    for source in addresses:
+        for target in addresses:
+            if source.family != target.family or source.host == target.host:
+                continue
+
+            kind = "same-segment" if source.table == target.table else "routed"
+            cases.append(
+                PingCase(
+                    kind=kind,
+                    family=source.family,
+                    source_host=source.host,
+                    source_container=source.container,
+                    source_interface=source.interface,
+                    source_ip=source.ip,
+                    target_host=target.host,
+                    target_interface=target.interface,
+                    target_ip=target.ip,
+                    source_table=source.table,
+                    target_table=target.table,
+                )
+            )
+    return cases
+
+
+def build_cases(
+    addresses: list[EndpointAddress],
+    mode: TestMode,
+    families: set[str],
+) -> list[PingCase]:
+    cases: list[PingCase] = []
+    if mode in {TestMode.gateways, TestMode.all}:
+        cases.extend(build_gateway_cases(addresses))
+    if mode in {TestMode.hosts, TestMode.all}:
+        cases.extend(build_host_cases(addresses))
+    return [case for case in cases if case.family in families]
+
+
+def split_reference(
+    reference: str,
+    known_hosts: set[str],
+    require_host: bool,
+) -> tuple[str | None, str]:
+    if ":" in reference:
+        possible_host, value = reference.split(":", 1)
+        if possible_host in known_hosts:
+            return possible_host, value
+
+    if require_host:
+        raise ValueError(f"source reference must be host:ip, got {reference!r}")
+    return None, reference
+
+
+def parse_ping_case(spec: str, addresses: list[EndpointAddress]) -> PingCase:
+    parts = [part.strip() for part in spec.split(",", 1)]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError("case must be SOURCE_HOST:SOURCE_IP,TARGET_HOST:TARGET_IP")
+
+    known_hosts = {address.host for address in addresses}
+    source_host, source_ip = split_reference(parts[0], known_hosts, require_host=True)
+    target_host, target_ip = split_reference(parts[1], known_hosts, require_host=False)
+
+    source = next(
+        (
+            address
+            for address in addresses
+            if address.host == source_host and address.ip == source_ip
+        ),
+        None,
+    )
+    if source is None:
+        raise ValueError(f"unknown source address {parts[0]!r}")
+
+    target_address = next(
+        (
+            address
+            for address in addresses
+            if address.ip == target_ip
+            and (target_host is None or address.host == target_host)
+            and address.family == source.family
+        ),
+        None,
+    )
+
+    target_interface = target_address.interface if target_address else None
+    target_table = target_address.table if target_address else None
+    resolved_target_host = target_address.host if target_address else target_host
+    if resolved_target_host is None:
+        resolved_target_host = "gateway" if target_ip == source.gateway else "manual"
+
+    kind = "manual"
+    if target_ip == source.gateway:
+        kind = "gateway"
+        target_table = source.table
+    elif target_address and source.table == target_address.table:
+        kind = "same-segment"
+    elif target_address:
+        kind = "routed"
+
+    return PingCase(
+        kind=kind,
+        family=source.family,
+        source_host=source.host,
+        source_container=source.container,
+        source_interface=source.interface,
+        source_ip=source.ip,
+        target_host=resolved_target_host,
+        target_interface=target_interface,
+        target_ip=target_ip,
+        source_table=source.table,
+        target_table=target_table,
+    )
+
+
+def flow_spec(name: str, flows: dict[str, Any]) -> str:
+    if name not in flows:
+        known = ", ".join(sorted(flows)) or "none"
+        raise ValueError(f"unknown flow {name!r}; configured flows: {known}")
+
+    raw_flow = flows[name]
+    if isinstance(raw_flow, str):
+        return raw_flow
+    if not isinstance(raw_flow, dict):
+        raise ValueError(f"flow {name!r} must be a string or mapping")
+
+    if "case" in raw_flow:
+        return str(raw_flow["case"])
+
+    source = raw_flow.get("source")
+    target = raw_flow.get("target")
+    if not source or not target:
+        raise ValueError(f"flow {name!r} requires source and target")
+    return f"{source},{target}"
+
+
+def ping_command(
+    case: PingCase,
+    count: int,
+    timeout: int,
+    interval: float,
+    continuous: bool = False,
+) -> list[str]:
+    command = [
+        "docker",
+        "exec",
+        case.source_container,
+        "ping",
+        "-n",
+        "-4" if case.family == "ipv4" else "-6",
+    ]
+    if not continuous:
+        command.extend(["-c", str(count)])
+    command.extend(["-W", str(timeout)])
+    if interval != 1:
+        command.extend(["-i", str(interval)])
+    command.extend(["-I", case.source_ip, case.target_ip])
+    return command
+
+
+def case_label(case: PingCase) -> str:
+    source = f"{case.source_host}:{case.source_ip}"
+    target = f"{case.target_host}:{case.target_ip}"
+    source_table = case.source_table or "none"
+    target_table = case.target_table or "none"
+    return (
+        f"{case.family} {case.kind} "
+        f"{source}({case.source_interface}, table {source_table}) -> "
+        f"{target}(table {target_table})"
+    )
+
+
+def packet_loss(output: str) -> str:
+    match = re.search(r"(\d+(?:\.\d+)?)% packet loss", output)
+    return f"{match.group(1)}% loss" if match else "no summary"
+
+
+def execute_ping_case(
+    case: PingCase,
+    count: int,
+    timeout: int,
+    interval: float,
+) -> tuple[bool, str]:
+    command = ping_command(case, count=count, timeout=timeout, interval=interval)
+    result = subprocess.run(
+        command,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    return result.returncode == 0, result.stdout
+
+
+def run_case(
+    case: PingCase,
+    count: int,
+    timeout: int,
+    interval: float,
+    dry_run: bool,
+    verbose: bool,
+    quiet_success: bool = False,
+    console: Console | None = None,
+) -> bool:
+    console = console or get_console()
+    command = ping_command(case, count=count, timeout=timeout, interval=interval)
+    label = case_label(case)
+
+    if dry_run:
+        console.print(f"[cyan]DRY[/]  {label}")
+        console.print(f"     [dim]{shlex.join(command)}[/]")
+        return True
+
+    passed, output = execute_ping_case(
+        case,
+        count=count,
+        timeout=timeout,
+        interval=interval,
+    )
+    if not quiet_success or not passed:
+        status = "[green]PASS[/]" if passed else "[red]FAIL[/]"
+        console.print(f"{status} {label} ([dim]{packet_loss(output)}[/])")
+
+    if verbose or not passed:
+        trimmed_output = output.strip()
+        if trimmed_output:
+            console.print(trimmed_output)
+
+    return passed
+
+
+def format_duration(seconds: float) -> str:
+    if seconds < 60:
+        return f"{seconds:.0f}s"
+    minutes, remainder = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}h {minutes}m {remainder}s"
+    return f"{minutes}m {remainder}s"
+
+
+def render_loop_dashboard(
+    cases: list[PingCase],
+    run_label: str,
+    sweep_interval: float,
+    started: float,
+    deadline: float | None,
+    cycle: int,
+    cycle_completed: int,
+    cycle_passed: int,
+    cycle_failed: int,
+    passed: int,
+    failed: int,
+    last_cycle: str,
+    recent_failures: list[tuple[int, str, str]],
+    status: str,
+) -> Group:
+    now = time.monotonic()
+    elapsed = format_duration(now - started)
+    remaining = "until interrupted"
+    if deadline is not None:
+        remaining = format_duration(max(0, deadline - now))
+
+    total = passed + failed
+    style = "green" if failed == 0 else "red"
+    summary = make_table("Metric", "Value", title="Data-plane sweep")
+    summary.add_row("Status", status)
+    summary.add_row("Runtime", f"{elapsed} / {run_label}")
+    summary.add_row("Remaining", remaining)
+    summary.add_row("Cadence", f"{len(cases)} checks, then {sweep_interval:g}s pause")
+    summary.add_row("Cycle", f"{cycle} ({cycle_completed}/{len(cases)} checks complete)")
+    summary.add_row("Current cycle", f"passed={cycle_passed} failed={cycle_failed}")
+    summary.add_row("Last cycle", last_cycle)
+    summary.add_row("Total", f"[{style}]passed={passed} failed={failed} total={total}[/]")
+
+    if not recent_failures:
+        return Group(summary)
+
+    failures = make_table("Cycle", "Case", "Result", title="Recent failures")
+    for failure_cycle, label, result in recent_failures[-8:]:
+        failures.add_row(str(failure_cycle), label, result)
+    return Group(summary, failures)
+
+
+def render_long_dashboard(
+    case: PingCase,
+    command: list[str],
+    run_label: str,
+    started: float,
+    deadline: float | None,
+    replies: int,
+    events: int,
+    last_output: str,
+    status: str,
+) -> Table:
+    now = time.monotonic()
+    remaining = "until interrupted"
+    if deadline is not None:
+        remaining = format_duration(max(0, deadline - now))
+
+    table = make_table("Metric", "Value", title="Data-plane flow")
+    table.add_row("Status", status)
+    table.add_row("Runtime", f"{format_duration(now - started)} / {run_label}")
+    table.add_row("Remaining", remaining)
+    table.add_row("Kind", f"{case.family} {case.kind}")
+    table.add_row(
+        "Source",
+        f"{case.source_host} {case.source_ip} {case.source_interface}",
+    )
+    table.add_row("Target", f"{case.target_host} {case.target_ip}")
+    table.add_row("Replies seen", str(replies))
+    table.add_row("Other events", str(events))
+    table.add_row("Last output", last_output or "waiting for ping output")
+    table.add_row("Command", shlex.join(command))
+    return table
+
+
+def run_long_case(
+    case: PingCase,
+    timeout: int,
+    interval: float,
+    duration: float | None,
+    dry_run: bool,
+    console: Console | None = None,
+) -> bool:
+    console = console or get_console()
+    command = ping_command(
+        case,
+        count=1,
+        timeout=timeout,
+        interval=interval,
+        continuous=True,
+    )
+    label = case_label(case)
+    run_label = f"{duration:g}s" if duration else "until interrupted"
+
+    if dry_run:
+        console.print(f"[cyan]DRY[/]  long-running {label} ([dim]{run_label}[/])")
+        console.print(f"     [dim]{shlex.join(command)}[/]")
+        return True
+
+    process = subprocess.Popen(
+        command,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+
+    deadline = time.monotonic() + duration if duration else None
+    started = time.monotonic()
+    replies = 0
+    events = 0
+    last_output = ""
+    status = "running"
+
+    def dashboard() -> Table:
+        return render_long_dashboard(
+            case=case,
+            command=command,
+            run_label=run_label,
+            started=started,
+            deadline=deadline,
+            replies=replies,
+            events=events,
+            last_output=last_output,
+            status=status,
+        )
+
+    try:
+        with Live(
+            dashboard(),
+            console=console,
+            refresh_per_second=4,
+            transient=True,
+        ) as live:
+            while True:
+                if deadline and time.monotonic() >= deadline:
+                    status = "finished"
+                    process.terminate()
+                    live.update(dashboard())
+                    break
+
+                if process.poll() is not None:
+                    status = "finished" if process.returncode == 0 else "failed"
+                    live.update(dashboard())
+                    break
+
+                if process.stdout:
+                    ready, _unused_write, _unused_error = select.select(
+                        [process.stdout],
+                        [],
+                        [],
+                        0.2,
+                    )
+                    if ready:
+                        line = process.stdout.readline()
+                        if line:
+                            last_output = line.strip()
+                            if "bytes from" in last_output:
+                                replies += 1
+                            elif last_output:
+                                events += 1
+                            live.update(dashboard())
+                            continue
+
+                live.update(dashboard())
+    except KeyboardInterrupt:
+        status = "interrupted"
+        process.terminate()
+        console.print("[yellow]Interrupted; stopping long-running ping.[/]")
+
+    try:
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
+
+    return process.returncode in (0, -15, 143)
+
+
+def run_loop_cases(
+    cases: list[PingCase],
+    count: int,
+    timeout: int,
+    interval: float,
+    duration: float | None,
+    dry_run: bool,
+    verbose: bool,
+    console: Console | None = None,
+) -> tuple[int, int]:
+    console = console or get_console()
+    run_label = f"{duration:g}s" if duration else "until interrupted"
+    if dry_run:
+        console.print(f"[bold]DRY[/]  printing one cycle of {len(cases)} data-plane cases")
+        passed = 0
+        failed = 0
+        for case in cases:
+            if run_case(
+                case,
+                count=count,
+                timeout=timeout,
+                interval=1,
+                dry_run=True,
+                verbose=verbose,
+                console=console,
+            ):
+                passed += 1
+            else:
+                failed += 1
+        return passed, failed
+
+    deadline = time.monotonic() + duration if duration else None
+    started = time.monotonic()
+    passed = 0
+    failed = 0
+    cycle = 0
+    cycle_completed = 0
+    cycle_passed = 0
+    cycle_failed = 0
+    last_cycle = "none yet"
+    recent_failures: list[tuple[int, str, str]] = []
+
+    def dashboard(status: str = "running") -> Group:
+        return render_loop_dashboard(
+            cases=cases,
+            run_label=run_label,
+            sweep_interval=interval,
+            started=started,
+            deadline=deadline,
+            cycle=cycle,
+            cycle_completed=cycle_completed,
+            cycle_passed=cycle_passed,
+            cycle_failed=cycle_failed,
+            passed=passed,
+            failed=failed,
+            last_cycle=last_cycle,
+            recent_failures=recent_failures,
+            status=status,
+        )
+
+    try:
+        with Live(
+            dashboard(),
+            console=console,
+            refresh_per_second=DASHBOARD_REFRESH_PER_SECOND,
+            transient=True,
+        ) as live:
+            while True:
+                if deadline and time.monotonic() >= deadline:
+                    live.update(dashboard("finished"))
+                    return passed, failed
+
+                cycle += 1
+                cycle_started = time.monotonic()
+                cycle_completed = 0
+                cycle_passed = 0
+                cycle_failed = 0
+
+                for index, case in enumerate(cases, start=1):
+                    if deadline and time.monotonic() >= deadline:
+                        live.update(dashboard("finished"))
+                        return passed, failed
+
+                    cycle_completed = index - 1
+                    live.update(dashboard())
+
+                    case_passed, output = execute_ping_case(
+                        case,
+                        count=count,
+                        timeout=timeout,
+                        interval=1,
+                    )
+                    cycle_completed = index
+                    if case_passed:
+                        passed += 1
+                        cycle_passed += 1
+                    else:
+                        failed += 1
+                        cycle_failed += 1
+                        recent_failures.append((cycle, case_label(case), packet_loss(output)))
+                        recent_failures = recent_failures[-8:]
+
+                    live.update(dashboard())
+
+                elapsed = time.monotonic() - cycle_started
+                last_cycle = (
+                    f"cycle {cycle}: passed={cycle_passed} "
+                    f"failed={cycle_failed} elapsed={elapsed:.1f}s"
+                )
+                if deadline and time.monotonic() >= deadline:
+                    live.update(dashboard("finished"))
+                    return passed, failed
+
+                live.update(dashboard("sleeping"))
+                sleep_for = interval
+                if deadline is not None:
+                    sleep_for = min(interval, max(0, deadline - time.monotonic()))
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+    except KeyboardInterrupt:
+        console.print("[yellow]Interrupted; stopping loop.[/]")
+        return passed, failed
+
+
+def base_interface(interface: str) -> str:
+    return interface.split(".", 1)[0]
+
+
+def load_topology_links(topology_path: Path) -> list[tuple[str, str, str, str]]:
+    topology = load_yaml(topology_path)
+    raw_links = topology.get("topology", {}).get("links", [])
+    links: list[tuple[str, str, str, str]] = []
+
+    for link in raw_links:
+        if not isinstance(link, dict):
+            continue
+        endpoints = link.get("endpoints", [])
+        if len(endpoints) != 2:
+            continue
+        first_node, first_interface = str(endpoints[0]).split(":", 1)
+        second_node, second_interface = str(endpoints[1]).split(":", 1)
+        links.append((first_node, first_interface, second_node, second_interface))
+
+    return links
+
+
+def adjacent_links(
+    links: list[tuple[str, str, str, str]],
+    node: str,
+) -> list[tuple[str, str, str, str]]:
+    matches: list[tuple[str, str, str, str]] = []
+    for left_node, left_intf, right_node, right_intf in links:
+        if left_node == node or right_node == node:
+            matches.append((left_node, left_intf, right_node, right_intf))
+    return matches
+
+
+def fabric_neighbors(
+    links: list[tuple[str, str, str, str]],
+    endpoint_hosts: set[str],
+) -> dict[str, set[str]]:
+    neighbors: dict[str, set[str]] = {}
+    for left_node, _left_intf, right_node, _right_intf in links:
+        if left_node in endpoint_hosts or right_node in endpoint_hosts:
+            continue
+        neighbors.setdefault(left_node, set()).add(right_node)
+        neighbors.setdefault(right_node, set()).add(left_node)
+    return neighbors
+
+
+def peer_for_node(
+    link: tuple[str, str, str, str],
+    node: str,
+) -> tuple[str, str, str] | None:
+    left_node, left_intf, right_node, right_intf = link
+    if left_node == node:
+        return left_intf, right_node, right_intf
+    if right_node == node:
+        return right_intf, left_node, left_intf
+    return None
+
+
+def tcpdump_command(container: str, interface: str) -> str:
+    return shlex.join(
+        ["docker", "exec", container, "tcpdump", "-ni", interface, "icmp or icmp6"]
+    )
+
+
+def print_capture_hints(
+    case: PingCase,
+    topology_path: Path,
+    endpoint_hosts: set[str],
+    extra_hints: list[CaptureHint],
+    console: Console | None = None,
+) -> None:
+    console = console or get_console()
+    links = load_topology_links(topology_path)
+    interesting_nodes = {case.source_host}
+    if case.target_host in endpoint_hosts:
+        interesting_nodes.add(case.target_host)
+
+    table = make_table("Where", "Command", title="Capture hints")
+    table.add_row(
+        f"{case.source_host}:{base_interface(case.source_interface)}",
+        tcpdump_command(case.source_container, base_interface(case.source_interface)),
+    )
+    if case.target_interface and case.target_host in endpoint_hosts:
+        table.add_row(
+            f"{case.target_host}:{base_interface(case.target_interface)}",
+            tcpdump_command(case.target_host, base_interface(case.target_interface)),
+        )
+
+    access_peers: set[str] = set()
+    printed_links: set[frozenset[tuple[str, str]]] = set()
+    neighbors = fabric_neighbors(links, endpoint_hosts)
+    for node in sorted(interesting_nodes):
+        for link in adjacent_links(links, node):
+            peer = peer_for_node(link, node)
+            if peer is None:
+                continue
+
+            local_intf, peer_node, peer_intf = peer
+            access_peers.add(peer_node)
+            printed_links.add(frozenset({(node, local_intf), (peer_node, peer_intf)}))
+
+            table.add_row(
+                f"edge {node}:{local_intf} to {peer_node}:{peer_intf}",
+                tcpdump_command(peer_node, peer_intf),
+            )
+
+    for left_node, left_intf, right_node, right_intf in links:
+        if left_node in endpoint_hosts or right_node in endpoint_hosts:
+            continue
+
+        left_access = left_node in access_peers
+        right_access = right_node in access_peers
+        direct_between_access_peers = left_access and right_access
+        bridges_between_access_peers = (
+            left_access
+            and bool((neighbors.get(right_node, set()) - {left_node}) & access_peers)
+        ) or (
+            right_access
+            and bool((neighbors.get(left_node, set()) - {right_node}) & access_peers)
+        )
+        if not direct_between_access_peers and not bridges_between_access_peers:
+            continue
+
+        link_key = frozenset({(left_node, left_intf), (right_node, right_intf)})
+        if link_key in printed_links:
+            continue
+        printed_links.add(link_key)
+
+        table.add_row(
+            f"fabric {left_node}:{left_intf} to {right_node}:{right_intf}",
+            tcpdump_command(left_node, left_intf),
+        )
+
+    for hint in extra_hints:
+        table.add_row(hint.where, hint.command)
+
+    console.print(table)
+
+
+def print_case_inventory(
+    config: NetworkTestConfig,
+    addresses: list[EndpointAddress],
+    cases: list[PingCase],
+    console: Console | None = None,
+) -> None:
+    console = console or get_console()
+    address_table = make_table(
+        "Host",
+        "Interface",
+        "Family",
+        "Prefix",
+        "Table",
+        "Gateway",
+        "VLAN",
+        title="Endpoint data-plane addresses",
+    )
+    for address in addresses:
+        route_table = address.table or "none"
+        gateway = address.gateway or "none"
+        vlan = f"vlan {address.vlan}" if address.vlan is not None else "untagged"
+        address_table.add_row(
+            address.host,
+            address.interface,
+            address.family,
+            address.prefix,
+            route_table,
+            gateway,
+            vlan,
+        )
+
+    gateway_count = len([case for case in cases if case.kind == "gateway"])
+    host_count = len(cases) - gateway_count
+    console.print(address_table)
+    console.print(
+        f"[bold]Generated cases:[/] {len(cases)} total, "
+        f"{gateway_count} gateway, {host_count} host"
+    )
+
+    if config.flows:
+        flow_table = make_table("Flow", "Source", "Target", title="Configured flows")
+        for name, raw_flow in sorted(config.flows.items()):
+            if isinstance(raw_flow, str):
+                source, target = raw_flow.split(",", 1)
+            elif isinstance(raw_flow, dict) and "case" in raw_flow:
+                source, target = str(raw_flow["case"]).split(",", 1)
+            elif isinstance(raw_flow, dict):
+                source = str(raw_flow.get("source", ""))
+                target = str(raw_flow.get("target", ""))
+            else:
+                source = ""
+                target = ""
+            flow_table.add_row(name, source, target)
+        console.print(flow_table)
+
+
+def validate_run_options(
+    manual_case: str | None,
+    flow: str | None,
+    once: bool,
+    duration: float | None,
+    interval: float,
+) -> str | None:
+    if manual_case and flow:
+        return "--case cannot be combined with --flow"
+    if duration is not None and once:
+        return "--duration cannot be combined with --once"
+    if not once and interval <= 0:
+        return "continuous runs require --interval > 0"
+    return None
+
+
+def print_summary(passed: int, failed: int, console: Console | None = None) -> None:
+    console = console or get_console()
+    style = "green" if failed == 0 else "red"
+    console.print(
+        f"[{style}]Summary:[/] passed={passed} failed={failed} total={passed + failed}"
+    )
+
+
+def selected_families(ipv4: bool, ipv6: bool, defaults: RunDefaults) -> set[str]:
+    if ipv4 and not ipv6:
+        return {"ipv4"}
+    if ipv6 and not ipv4:
+        return {"ipv6"}
+    return set(defaults.families)
+
+
+def cli(
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config",
+            "-c",
+            help="Network test config. Default: network-tests/<topology-base>.yml.",
+        ),
+    ] = None,
+    topology: Annotated[
+        Path | None,
+        typer.Option(
+            "--topology",
+            "-t",
+            help="Containerlab topology. Default: the single *.clab.yml or *.clab.yaml in cwd.",
+        ),
+    ] = None,
+    test: Annotated[
+        TestMode | None,
+        typer.Option("--test", help="Generated test set to run."),
+    ] = None,
+    flow: Annotated[
+        str | None,
+        typer.Option("--flow", help="Configured flow name to run as one long ping."),
+    ] = None,
+    list_cases: Annotated[
+        bool,
+        typer.Option("--list", help="Print discovered addresses, cases, and flows."),
+    ] = False,
+    once: Annotated[
+        bool,
+        typer.Option("--once", help="Run one pass and exit. Default is continuous."),
+    ] = False,
+    duration: Annotated[
+        float | None,
+        typer.Option("--duration", min=0, help="Run continuously for this many seconds."),
+    ] = None,
+    ipv4: Annotated[
+        bool,
+        typer.Option("--ipv4", help="Only run IPv4 checks."),
+    ] = False,
+    ipv6: Annotated[
+        bool,
+        typer.Option("--ipv6", help="Only run IPv6 checks."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Print commands without sending traffic."),
+    ] = False,
+    capture_hints: Annotated[
+        bool,
+        typer.Option("--capture-hints", help="Print tcpdump capture hints for a selected flow."),
+    ] = False,
+    count: Annotated[
+        int | None,
+        typer.Option("--count", min=1, help="Packets per finite ping case."),
+    ] = None,
+    timeout: Annotated[
+        int | None,
+        typer.Option("--timeout", min=1, help="Ping reply timeout in seconds."),
+    ] = None,
+    interval: Annotated[
+        float | None,
+        typer.Option(
+            "--interval",
+            min=0,
+            help="Mesh mode: pause between sweeps. Flow mode: seconds between packets.",
+        ),
+    ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            help="Print full ping output for one-shot checks; continuous mode stays aggregate.",
+        ),
+    ] = False,
+    manual_case: Annotated[
+        str | None,
+        typer.Option("--case", help="Advanced: SOURCE_HOST:SOURCE_IP,TARGET_HOST:TARGET_IP.", hidden=True),
+    ] = None,
+) -> None:
+    console = get_console()
+
+    try:
+        config_path, topology_path = resolve_runtime_paths(config, topology, Path.cwd())
+        network_test = load_network_test_config(config_path, topology_path)
+        addresses = load_endpoint_addresses(network_test.path, network_test.endpoints)
+
+        run_test = test or network_test.defaults.test
+        families = selected_families(ipv4, ipv6, network_test.defaults)
+        run_count = count if count is not None else network_test.defaults.count
+        run_timeout = timeout if timeout is not None else network_test.defaults.timeout
+        case_spec = manual_case or (flow_spec(flow, network_test.flows) if flow else None)
+        run_interval = (
+            interval
+            if interval is not None
+            else network_test.defaults.flow_interval
+            if case_spec
+            else network_test.defaults.sweep_interval
+        )
+
+        error = validate_run_options(
+            manual_case=manual_case,
+            flow=flow,
+            once=once,
+            duration=duration,
+            interval=run_interval,
+        )
+        if error:
+            raise ValueError(error)
+        if duration is not None and duration <= 0:
+            raise ValueError("--duration must be > 0")
+
+        if case_spec:
+            cases = [parse_ping_case(case_spec, addresses)]
+        else:
+            cases = build_cases(addresses, run_test, families)
+    except (OSError, ValueError) as exc:
+        console.print(f"[red]error:[/] {exc}", stderr=True)
+        raise typer.Exit(2) from exc
+
+    if list_cases:
+        print_case_inventory(network_test, addresses, cases, console=console)
+        if manual_case or dry_run:
+            for case in cases:
+                console.print(case_label(case))
+        return
+
+    if not cases:
+        console.print("[red]error:[/] no cases selected", stderr=True)
+        raise typer.Exit(2)
+
+    if capture_hints:
+        if network_test.topology is None:
+            console.print(
+                "[red]error:[/] capture hints require topology in config or --topology",
+                stderr=True,
+            )
+            raise typer.Exit(2)
+        endpoint_hosts = {address.host for address in addresses}
+        for case in cases[:1]:
+            print_capture_hints(
+                case,
+                network_test.topology,
+                endpoint_hosts,
+                network_test.capture_hints,
+                console=console,
+            )
+        if dry_run and len(cases) == 1:
+            console.print()
+
+    if not once and len(cases) == 1:
+        passed = run_long_case(
+            cases[0],
+            timeout=run_timeout,
+            interval=run_interval,
+            duration=duration,
+            dry_run=dry_run,
+            console=console,
+        )
+        print_summary(1 if passed else 0, 0 if passed else 1, console=console)
+        raise typer.Exit(0 if passed else 1)
+
+    if not once:
+        passed, failed = run_loop_cases(
+            cases,
+            count=run_count,
+            timeout=run_timeout,
+            interval=run_interval,
+            duration=duration,
+            dry_run=dry_run,
+            verbose=verbose,
+            console=console,
+        )
+        print_summary(passed, failed, console=console)
+        raise typer.Exit(1 if failed else 0)
+
+    passed = 0
+    failed = 0
+    for case in cases:
+        if run_case(
+            case,
+            count=run_count,
+            timeout=run_timeout,
+            interval=run_interval if case_spec else 1,
+            dry_run=dry_run,
+            verbose=verbose,
+            console=console,
+        ):
+            passed += 1
+        else:
+            failed += 1
+
+    print_summary(passed, failed, console=console)
+    raise typer.Exit(1 if failed else 0)
+
+
+def main() -> None:
+    typer.run(cli)
+
+
+if __name__ == "__main__":
+    main()

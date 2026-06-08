@@ -28,20 +28,19 @@ Covered connectivity cases:
 
 ## The Short Path
 
-Run from this directory:
+Run from this directory (the one containing `pyproject.toml`):
 
 ```bash
-cd /Users/md/git/network/nokia/nokia-validated-designs/validated-designs/collapsed-spine/collapsed-spine-with-ansible
-
 uv sync
 uv run ansible-galaxy collection install -r requirements.yml
 
 containerlab deploy -t 2-way-collapsed-spine.clab.yaml
 containerlab inspect -t 2-way-collapsed-spine.clab.yaml
 
-uv run ansible-playbook playbooks/deploy.yml
-uv run ansible-playbook playbooks/validate.yml
-uv run ansible-playbook playbooks/deploy.yml
+uv run ansible-playbook playbooks/deploy.yml      # apply intent (fabric + endpoints)
+sleep 20                                           # let LACP / Ethernet Segments converge
+uv run ansible-playbook playbooks/validate.yml    # assert state
+uv run ansible-playbook playbooks/deploy.yml      # idempotency check
 ```
 
 The last deploy is the idempotency check. A healthy final recap has
@@ -50,6 +49,43 @@ The last deploy is the idempotency check. A healthy final recap has
 Do not run the playbooks with only `uvx --from ansible-core ...`; that misses
 the Python libraries required by `community.docker`. Use `uv run ...` from this
 directory.
+
+## Deployment Lifecycle and State Persistence
+
+This is the single most important operational fact for this lab:
+
+> **After every `containerlab` (re)deploy you must re-run `playbooks/deploy.yml`.**
+> The SR Linux fabric config survives a redeploy; the Linux endpoint config does not.
+
+Why the two halves behave differently:
+
+- **SR Linux nodes persist.** `srl_config` runs with `save_when: changed`, which
+  writes the running config to each node's startup. Containerlab stores that under
+  `clab-2-spine-collapsed/<node>/` and reloads it on the next deploy, so the fabric
+  comes back configured (network-instances, LAGs, Ethernet Segments) even without
+  Ansible.
+- **Linux endpoints are ephemeral.** The `linux_endpoint` role applies VLANs,
+  bonds, addresses, and routes with `ip` commands inside the containers (no
+  Containerlab `exec` startup blocks, by design). A container redeploy creates
+  fresh namespaces, so all of that is gone until `deploy.yml` runs again. The
+  tell-tale symptom is `ping: bind: Address not available` in `validate.yml`,
+  because the endpoint source IPs are missing.
+
+```mermaid
+flowchart TD
+    A[containerlab redeploy] --> B[SR Linux nodes<br/>reload saved startup config]
+    A --> C[Linux endpoints<br/>fresh namespaces, no data-plane config]
+    B --> D[run deploy.yml]
+    C --> D
+    D --> E[fabric reconciled idempotently<br/>endpoints reconfigured]
+    E --> F[wait for convergence, then validate.yml]
+```
+
+To reset endpoints only (fast path after a redeploy when the fabric is unchanged):
+
+```bash
+uv run ansible-playbook playbooks/deploy.yml --limit linux_clients
+```
 
 ## Requirements
 
@@ -169,6 +205,12 @@ Validate:
 uv run ansible-playbook playbooks/validate.yml
 ```
 
+`validate.yml` reads device state once and does not wait for LACP to converge.
+Run it a few seconds after a fresh deploy or boot (see "The Short Path"). If LAG
+or Ethernet Segment assertions fail immediately after deploy but the links are
+actually up (`docker exec spine1 sr_cli "info from state interface lag1
+oper-state"`), it is a convergence race: wait and re-run.
+
 Check idempotency:
 
 ```bash
@@ -193,6 +235,13 @@ spine1 untagged and spine2 tagged access, and the `s3` bond.
 
 Single-active non-DF LAG state may show `standby-signaling`. That is expected
 for this design and is treated as healthy by validation.
+
+Timing matters: `validate.yml` samples state once with no retry for LAG/ES
+convergence. Spine LAGs settle slightly later than ToR LAGs, so validating in
+the first seconds after a deploy can fail spine `lag1`..`lag4` even though they
+come up moments later. Allow ~15-20s after deploy before validating. Endpoint
+ping checks do retry (5 attempts), so they tolerate brief delays but not missing
+endpoint config (run `deploy.yml` first).
 
 ## Common Operations
 
@@ -232,6 +281,12 @@ Tear down the lab:
 containerlab destroy -t 2-way-collapsed-spine.clab.yaml --cleanup
 ```
 
+`--cleanup` also deletes the saved SR Linux startup config under
+`clab-2-spine-collapsed/`, so the next `deploy` starts the fabric from factory
+state. Omit `--cleanup` to keep the fabric config across a redeploy. Either way,
+re-run `playbooks/deploy.yml` afterwards to restore the (always-ephemeral)
+endpoint config.
+
 ## Manual Checks
 
 Open an SR Linux CLI:
@@ -265,6 +320,84 @@ docker exec s1 ping -c 3 -I 172.16.20.1 172.16.50.4
 docker exec s1 ping6 -c 3 -I 2001:db8:0:20::1 2001:db8:0:50::4
 ```
 
+## Data-Plane Tests
+
+Use `tools/clab-network-tester` to generate endpoint traffic across the real
+data plane. The executable is a self-contained `uv` script. It auto-detects the
+single Containerlab topology in this directory and loads the matching network
+test config:
+
+```text
+2-way-collapsed-spine.clab.yaml
+network-tests/2-way-collapsed-spine.yml
+```
+
+The config points at `ansible/inventory.yml` and `ansible/host_vars/`, so the
+Ansible endpoint intent remains the source of truth. The tester runs
+source-bound pings from the Linux endpoint containers and does not use
+`172.21.21.0/24` management addresses as ping sources or targets.
+
+List the discovered endpoint addresses, generated cases, and named flows:
+
+```bash
+tools/clab-network-tester --list
+```
+
+Continuously warm up and check the full dual-stack endpoint mesh:
+
+```bash
+tools/clab-network-tester
+```
+
+Continuous mesh mode uses a compact live monitor. It shows sweep cadence,
+current cycle progress, totals, the last completed cycle, and recent failures.
+It does not print every successful ping or show a fast-changing current target.
+The default lab cadence is one full sweep followed by a 30-second pause, which
+keeps IPv4 ARP entries active without creating constant terminal churn.
+
+To change the mesh cadence:
+
+```bash
+tools/clab-network-tester --ipv4 --interval 60
+```
+
+In mesh mode, `--interval` is the pause after a completed sweep. In focused
+`--flow` mode, `--interval` is the packet interval for that single long-running
+ping.
+
+Run the same continuous mesh for five minutes:
+
+```bash
+tools/clab-network-tester --duration 300
+```
+
+Run the full dual-stack endpoint mesh once:
+
+```bash
+tools/clab-network-tester --once
+```
+
+Run only IPv4 endpoint-to-gateway checks:
+
+```bash
+tools/clab-network-tester --test gateways --ipv4 --once
+```
+
+Generate the configured `s1` to `s4` long-running flow for packet capture:
+
+```bash
+tools/clab-network-tester --flow s1-to-s4 --interval 0.2 --capture-hints
+```
+
+Run that same capture flow for a fixed time:
+
+```bash
+tools/clab-network-tester --flow s1-to-s4 --duration 120
+```
+
+Use `--dry-run` with any command to print the exact `docker exec ... ping -I`
+commands without sending traffic.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
@@ -274,8 +407,10 @@ docker exec s1 ping6 -c 3 -I 2001:db8:0:20::1 2001:db8:0:50::4
 | SR Linux HTTPS connection fails | Node is not running, IP mismatch, or API not ready yet | Run `containerlab inspect -t 2-way-collapsed-spine.clab.yaml` and compare with `ansible/inventory.yml` |
 | Fewer than 11 nodes in inspect output | Topology did not fully start | Check `docker ps -a`, destroy with `--cleanup`, and deploy again |
 | `nokia.srlinux.validate` fails | Payload path/value shape does not match the SR Linux model | Re-run with `-vvv` and fix readable vars or `ansible/filter_plugins/srl_payload.py` |
-| `ping: bind: Address not available` | Endpoint addresses are missing because endpoint deploy has not run against the current containers | Run `uv run ansible-playbook playbooks/deploy.yml --limit linux_clients` |
+| `ping: bind: Address not available` | Endpoint config was wiped by a containerlab redeploy (endpoints are ephemeral; see "Deployment Lifecycle and State Persistence") | Run `uv run ansible-playbook playbooks/deploy.yml --limit linux_clients` |
 | Endpoint routed pings fail | Endpoint source policy/routing state is missing or stale | Re-run `uv run ansible-playbook playbooks/deploy.yml --limit linux_clients` |
+| `LAG lagN is not operationally healthy` on spines right after deploy | LACP/ES convergence race; `validate.yml` sampled state too early | Wait ~15-20s and re-run `validate.yml`; confirm with `docker exec spine1 sr_cli "info from state interface lagN oper-state"` |
+| `validate.yml` fails widely right after a redeploy | `deploy.yml` was not re-run, so endpoints are unconfigured and LAGs may still be converging | Run `uv run ansible-playbook playbooks/deploy.yml`, wait for convergence, then validate |
 | `s3` bond validation fails | Linux bond or connected SR Linux LAG/ES is down | Check `docker exec s3 cat /proc/net/bonding/bond0` and validate `s3:spine1:spine2` |
 | Second deploy reports changes | Something is not round-tripping idempotently | Run `uv run ansible-playbook playbooks/deploy.yml --check --diff -vv` on the changed host |
 

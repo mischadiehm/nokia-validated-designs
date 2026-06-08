@@ -1,0 +1,34 @@
+---
+version: 1
+topology: ../2-way-collapsed-spine.clab.yaml
+
+defaults:
+  test: all
+  families:
+    - ipv4
+    - ipv6
+  count: 1
+  timeout: 2
+  sweep_interval: 30
+  flow_interval: 1
+
+endpoints:
+  source:
+    type: ansible_host_vars
+    inventory: ../ansible/inventory.yml
+    host_vars_dir: ../ansible/host_vars
+    group: linux_clients
+
+flows:
+  s1-to-s4:
+    source: s1:172.16.20.1
+    target: s4:172.16.50.4
+  s4-to-s1:
+    source: s4:172.16.50.4
+    target: s1:172.16.10.1
+  s1-to-s4-ipv6:
+    source: s1:2001:db8:0:20::1
+    target: s4:2001:db8:0:50::4
+  s4-to-s1-ipv6:
+    source: s4:2001:db8:0:50::4
+    target: s1:2001:db8:0:10::1

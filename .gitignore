@@ -1,5 +1,6 @@
 # ignore clab lab dir
 clab-*
+!validated-designs/collapsed-spine/collapsed-spine-with-ansible/tools/clab-network-tester
 
 # ignore clab bak files
 **/*.yaml.bak

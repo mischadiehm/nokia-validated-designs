@@ -7,7 +7,10 @@ requires-python = ">=3.12"
 dependencies = [
     "ansible-core==2.21.0",
     "ansible-lint==26.4.0",
+    "pyyaml>=6,<7",
     "requests==2.34.2",
+    "rich>=13.7,<15",
+    "typer>=0.12,<1",
 ]
 
 [dependency-groups]
