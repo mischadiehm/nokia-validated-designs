@@ -1,0 +1,19 @@
+---
+# ToR layer (tor1-tor3), merged into srl_config by group_vars/srl/srl_config.yml.
+# Per-ToR specifics (physical ports, access VLAN, LACP admin-key/system-id-mac,
+# mac-vrf) live in host_vars/<tor>.yml under srl_host.
+srl_tor_common:
+  set:
+    interface:
+      lag1:
+        admin-state: enable
+        vlan-tagging: true
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            system-priority: 32768

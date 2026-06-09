@@ -1,0 +1,51 @@
+---
+# Builds the srl_config that the srl_payload filter consumes, by deep-merging
+# the layers below (later wins). One file per group contributes a layer:
+#   srl_common        - this file: identical on every SR Linux node
+#   srl_tor_common    - group_vars/tors/srl_config.yml
+#   srl_spine_common  - group_vars/collapsed_spines/srl_config.yml
+#   srl_host          - host_vars/<host>.yml: the per-node remainder
+# A host is in exactly one role group, so only one role layer is set; the
+# others default to an empty mapping.
+srl_config: >-
+  {{ srl_common
+     | combine(srl_tor_common | default({}, true), recursive=true)
+     | combine(srl_spine_common | default({}, true), recursive=true)
+     | combine(srl_host | default({}, true), recursive=true) }}
+
+srl_common:
+  set:
+    system:
+      logging:
+        buffer:
+          log-buffer:
+            subsystem:
+              arpnd:
+                priority:
+                  match-above: informational
+              bfd:
+                priority:
+                  match-above: informational
+              bgp:
+                priority:
+                  match-above: informational
+              evpn:
+                priority:
+                  match-above: informational
+              lag:
+                priority:
+                  match-above: informational
+              lldp:
+                priority:
+                  match-above: informational
+              vxlan:
+                priority:
+                  match-above: informational
+  delete:
+    system:
+      aaa:
+        authentication:
+          admin-user:
+            ssh-key: {}
+          linuxadmin-user:
+            ssh-key: {}

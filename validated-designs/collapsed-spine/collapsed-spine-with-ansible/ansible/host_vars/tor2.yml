@@ -1,34 +1,10 @@
-# Collapsed-spine Ansible intent. Keep readable; do not store rendered payloads here.
-srl_config:
+# Per-ToR intent (the srl_host layer). Common parts live in group_vars/{srl,tors}/.
+# Keep readable; do not store rendered payloads here.
+srl_host:
   set:
     system:
       name:
         host-name: d2l-35-tor2
-      logging:
-        buffer:
-          log-buffer:
-            subsystem:
-              arpnd:
-                priority:
-                  match-above: informational
-              bfd:
-                priority:
-                  match-above: informational
-              bgp:
-                priority:
-                  match-above: informational
-              evpn:
-                priority:
-                  match-above: informational
-              lag:
-                priority:
-                  match-above: informational
-              lldp:
-                priority:
-                  match-above: informational
-              vxlan:
-                priority:
-                  match-above: informational
       lldp:
         interface:
           ethernet-1/51:
@@ -62,8 +38,6 @@ srl_config:
               encap: untagged
       lag1:
         description: tor2-spine-lag
-        admin-state: enable
-        vlan-tagging: true
         subinterface:
           '4096':
             type: bridged
@@ -72,16 +46,9 @@ srl_config:
             vlan:
               encap: untagged
         lag:
-          lag-type: lacp
-          min-links: 1
-          lacp-fallback-mode: static
-          lacp-fallback-timeout: 60
           lacp:
-            interval: FAST
-            lacp-mode: ACTIVE
             admin-key: 6
             system-id-mac: 00:00:22:22:22:22
-            system-priority: 32768
     network-instance:
       v10-simple:
         type: mac-vrf
@@ -102,11 +69,3 @@ srl_config:
             num-moves: 5
             hold-down-time: 9
             action: stop-learning
-  delete:
-    system:
-      aaa:
-        authentication:
-          admin-user:
-            ssh-key: {}
-          linuxadmin-user:
-            ssh-key: {}

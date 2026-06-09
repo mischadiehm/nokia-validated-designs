@@ -1,5 +1,6 @@
-# Collapsed-spine Ansible intent. Keep readable; do not store rendered payloads here.
-srl_config:
+# Per-spine intent (the srl_host layer). Common parts live in
+# group_vars/{srl,collapsed_spines}/. Keep readable; do not store rendered payloads here.
+srl_host:
   set:
     system:
       name:
@@ -59,31 +60,6 @@ srl_config:
           bgp-vpn:
             bgp-instance:
               '1': {}
-      logging:
-        buffer:
-          log-buffer:
-            subsystem:
-              arpnd:
-                priority:
-                  match-above: informational
-              bfd:
-                priority:
-                  match-above: informational
-              bgp:
-                priority:
-                  match-above: informational
-              evpn:
-                priority:
-                  match-above: informational
-              lag:
-                priority:
-                  match-above: informational
-              lldp:
-                priority:
-                  match-above: informational
-              vxlan:
-                priority:
-                  match-above: informational
       lldp:
         interface:
           ethernet-1/23:
@@ -100,165 +76,6 @@ srl_config:
             admin-state: enable
           ethernet-1/32:
             admin-state: enable
-    routing-policy:
-      prefix-set:
-        prefixset-dc1-collapsed-spine:
-          prefix:
-            192.0.2.0/24:
-              mask-length-range: 32..32
-      policy:
-        ebgp-isl-export-policy-dc1-collapsed-spine:
-          default-action:
-            policy-result: reject
-          statement:
-            '10':
-              match:
-                protocol: local
-                prefix:
-                  prefix-set: prefixset-dc1-collapsed-spine
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '15':
-              match:
-                protocol: bgp
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '20':
-              match:
-                protocol: aggregate
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '25':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 1
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '30':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 2
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '35':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 3
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '40':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 4
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '45':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 5
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-        ebgp-isl-import-policy-dc1-collapsed-spine:
-          default-action:
-            policy-result: reject
-          statement:
-            '10':
-              match:
-                protocol: bgp
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '25':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 1
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '30':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 2
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '35':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 3
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '40':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 4
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
-            '45':
-              match:
-                bgp:
-                  evpn:
-                    route-type:
-                      - 5
-              action:
-                policy-result: accept
-                bgp:
-                  local-preference:
-                    set: 100
     interface:
       ethernet-1/23:
         description: spine1-spine2-tor4-lag
@@ -911,20 +728,6 @@ srl_config:
                 route-target:
                   export-rt: target:1:500
                   import-rt: target:1:500
-    bfd:
-      subinterface:
-        ethernet-1/31.0:
-          admin-state: enable
-          desired-minimum-transmit-interval: 1000000
-          required-minimum-receive: 1000000
-          detection-multiplier: 3
-          minimum-echo-receive-interval: 1000000
-        ethernet-1/32.0:
-          admin-state: enable
-          desired-minimum-transmit-interval: 1000000
-          required-minimum-receive: 1000000
-          detection-multiplier: 3
-          minimum-echo-receive-interval: 1000000
     tunnel-interface:
       vxlan0:
         vxlan-interface:
@@ -964,11 +767,3 @@ srl_config:
               vni: 10500
             egress:
               source-ip: use-system-ipv4-address
-  delete:
-    system:
-      aaa:
-        authentication:
-          admin-user:
-            ssh-key: {}
-          linuxadmin-user:
-            ssh-key: {}

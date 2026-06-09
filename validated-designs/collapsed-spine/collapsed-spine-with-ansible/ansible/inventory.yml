@@ -6,14 +6,8 @@
 all:
   children:
     srl:
-      vars:
-        ansible_connection: ansible.netcommon.httpapi
-        ansible_network_os: nokia.srlinux.srlinux
-        ansible_user: admin
-        ansible_password: "NokiaSrl1!"          # lab default; use vault for anything real
-        ansible_httpapi_use_ssl: true
-        ansible_httpapi_validate_certs: false    # self-signed lab certs
-        ansible_httpapi_port: 443
+      # Connection/auth: group_vars/srl/connection.yml
+      # Shared intent: group_vars/srl/common.yml (+ tors/ and collapsed_spines/)
       children:
         collapsed_spines:
           hosts:
