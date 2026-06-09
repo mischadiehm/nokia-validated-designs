@@ -1,0 +1,283 @@
+#!/usr/bin/env -S uv run --script
+# /// script
+# requires-python = ">=3.12"
+# ///
+"""Sync and audit SR Linux list-key metadata against the release path catalog."""
+
+from __future__ import annotations
+
+import argparse
+import importlib.util
+import json
+import re
+import sys
+import time
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_VERSION = "v25.3.2"
+DEFAULT_LIST_KEYS_PATH = Path("ansible/srl_list_keys.py")
+PATHS_URL = (
+    "https://raw.githubusercontent.com/srl-labs/yang-browser/master/"
+    "static/releases/{version}/paths.json"
+)
+FETCH_RETRIES = 3
+FETCH_TIMEOUT = 90
+KEY_SELECTOR_RE = re.compile(r"\[([^]=]+)=\*\]")
+
+
+@dataclass(frozen=True)
+class PathCheck:
+    label: str
+    path: str
+    expected_type: str | None = None
+
+
+@dataclass(frozen=True)
+class CheckResult:
+    label: str
+    ok: bool
+    detail: str
+
+
+TYPE_CHECKS = [
+    PathCheck(
+        "primary address empty leaf",
+        "/interface[name=*]/subinterface[index=*]/ipv4/address[ip-prefix=*]/primary",
+        "empty",
+    ),
+    PathCheck(
+        "anycast-gw container",
+        "/interface[name=*]/subinterface[index=*]/anycast-gw",
+        "[container]",
+    ),
+    PathCheck(
+        "untagged encap container",
+        "/interface[name=*]/subinterface[index=*]/vlan/encap/untagged",
+        "[container]",
+    ),
+    PathCheck(
+        "single-tagged encap container",
+        "/interface[name=*]/subinterface[index=*]/vlan/encap/single-tagged",
+        "[container]",
+    ),
+]
+
+
+def fetch_text(url: str) -> str:
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "collapsed-spine-schema-audit"},
+    )
+    last_error: Exception | None = None
+    for attempt in range(1, FETCH_RETRIES + 1):
+        try:
+            with urllib.request.urlopen(request, timeout=FETCH_TIMEOUT) as response:
+                return response.read().decode("utf-8")
+        except Exception as exc:  # pragma: no cover - depends on network timing
+            last_error = exc
+            if attempt < FETCH_RETRIES:
+                time.sleep(attempt)
+    raise RuntimeError(f"failed to fetch {url}: {last_error}") from last_error
+
+
+def load_catalog(version: str, paths_json: Path | None = None) -> dict[str, dict[str, Any]]:
+    if paths_json is None:
+        raw = fetch_text(PATHS_URL.format(version=version))
+    else:
+        raw = paths_json.read_text(encoding="utf-8")
+    data = json.loads(raw)
+    if not isinstance(data, list):
+        raise ValueError("paths catalog must contain a JSON list")
+    catalog: dict[str, dict[str, Any]] = {}
+    for item in data:
+        if not isinstance(item, dict) or "path" not in item:
+            raise ValueError("paths catalog entries must be JSON objects with a path")
+        catalog[str(item["path"])] = item
+    return catalog
+
+
+def list_key_paths_from_catalog(
+    catalog: dict[str, dict[str, Any]],
+) -> dict[tuple[str, ...], tuple[str, ...]]:
+    """Extract YANG list key names from generated SR Linux catalog paths."""
+    list_keys = {}
+    for path, entry in catalog.items():
+        if entry.get("type") != "[list]":
+            continue
+        segments = path.strip("/").split("/")
+        if not segments:
+            continue
+        node_path = tuple(segment.split("[", 1)[0] for segment in segments)
+        key_names = tuple(KEY_SELECTOR_RE.findall(segments[-1]))
+        if key_names:
+            list_keys[node_path] = key_names
+    return list_keys
+
+
+def path_with_keys(
+    node_path: tuple[str, ...],
+    list_keys: dict[tuple[str, ...], tuple[str, ...]],
+) -> str:
+    parts = []
+    for index, node_name in enumerate(node_path, start=1):
+        keys = list_keys.get(node_path[:index], ())
+        selector = "".join(f"[{key_name}=*]" for key_name in keys)
+        parts.append(f"{node_name}{selector}")
+    return "/" + "/".join(parts)
+
+
+def render_list_keys_module(
+    version: str,
+    list_keys: dict[tuple[str, ...], tuple[str, ...]],
+) -> str:
+    lines = [
+        '"""Generated SR Linux list-key metadata for the readable intent renderer.',
+        "",
+        "Regenerate with:",
+        f"  tools/audit-srl-paths --version {version} --sync-list-keys",
+        '"""',
+        "",
+        f'SRL_LIST_KEYS_VERSION = "{version}"',
+        "",
+        "LIST_KEY_PATHS: dict[tuple[str, ...], tuple[str, ...]] = {",
+    ]
+    for node_path, key_names in sorted(list_keys.items()):
+        lines.append(f"    {node_path!r}: {key_names!r},")
+    lines.extend(["}", ""])
+    return "\n".join(lines)
+
+
+def write_list_keys_module(
+    version: str,
+    list_keys: dict[tuple[str, ...], tuple[str, ...]],
+    output_path: Path,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(render_list_keys_module(version, list_keys), encoding="utf-8")
+
+
+def load_list_keys(path: Path = DEFAULT_LIST_KEYS_PATH):
+    project = Path(__file__).resolve().parents[1]
+    list_keys_path = project / path
+    sys.path.insert(0, str(list_keys_path.parent))
+    spec = importlib.util.spec_from_file_location("srl_list_keys_for_schema_audit", list_keys_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load {list_keys_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.SRL_LIST_KEYS_VERSION, module.LIST_KEY_PATHS
+
+
+def audit_list_keys(
+    expected: dict[tuple[str, ...], tuple[str, ...]],
+    catalog: dict[str, dict[str, Any]],
+) -> list[CheckResult]:
+    catalog_list_keys = list_key_paths_from_catalog(catalog)
+    results = []
+    for node_path, expected_keys in sorted(expected.items()):
+        label = "list " + "/".join(node_path)
+        actual_keys = catalog_list_keys.get(node_path)
+        if actual_keys is None:
+            expected_path = path_with_keys(node_path, expected)
+            results.append(CheckResult(label, False, f"catalog missing {expected_path}"))
+            continue
+        if actual_keys != expected_keys:
+            results.append(
+                CheckResult(
+                    label,
+                    False,
+                    f"keys {actual_keys!r}, expected {expected_keys!r}",
+                )
+            )
+            continue
+        catalog_path = path_with_keys(node_path, catalog_list_keys)
+        results.append(CheckResult(label, True, f"catalog keys match {catalog_path}"))
+    return results
+
+
+def audit_catalog(checks: list[PathCheck], catalog: dict[str, dict[str, Any]]) -> list[CheckResult]:
+    results: list[CheckResult] = []
+    for check in checks:
+        entry = catalog.get(check.path)
+        if entry is None:
+            results.append(CheckResult(check.label, False, f"missing {check.path}"))
+            continue
+        actual_type = entry.get("type")
+        ok = check.expected_type is None or actual_type == check.expected_type
+        detail = "catalog path found" if ok else f"type {actual_type!r}, expected {check.expected_type!r}"
+        results.append(CheckResult(check.label, ok, detail))
+    return results
+
+
+def print_results(results: list[CheckResult], verbose: bool) -> None:
+    if not verbose and all(result.ok for result in results):
+        return
+    width = max(len(result.label) for result in results) if results else 0
+    for result in results:
+        if not verbose and result.ok:
+            continue
+        status = "OK" if result.ok else "FAIL"
+        print(f"{status:4} {result.label:<{width}}  {result.detail}")
+
+
+def parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Sync and audit SR Linux list-key metadata against paths.json."
+    )
+    parser.add_argument(
+        "--version",
+        default=DEFAULT_VERSION,
+        help=f"SR Linux release path catalog to audit against (default: {DEFAULT_VERSION})",
+    )
+    parser.add_argument(
+        "--paths-json",
+        type=Path,
+        help="Local paths.json file; defaults to SRL Labs yang-browser release artifact.",
+    )
+    parser.add_argument(
+        "--sync-list-keys",
+        action="store_true",
+        help="Regenerate ansible/srl_list_keys.py from the catalog before auditing.",
+    )
+    parser.add_argument(
+        "--list-keys-path",
+        type=Path,
+        default=DEFAULT_LIST_KEYS_PATH,
+        help=f"List-key metadata path (default: {DEFAULT_LIST_KEYS_PATH})",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print passing checks; by default only failures and the summary are printed.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    catalog = load_catalog(version=args.version, paths_json=args.paths_json)
+    catalog_list_key_paths = list_key_paths_from_catalog(catalog)
+    if args.sync_list_keys:
+        write_list_keys_module(args.version, catalog_list_key_paths, args.list_keys_path)
+        print(f"Synced {len(catalog_list_key_paths)} list-key path(s) to {args.list_keys_path}.")
+    list_keys_version, list_key_paths = load_list_keys(args.list_keys_path)
+    if list_keys_version != args.version:
+        print(f"Auditing list keys synced for {list_keys_version} against {args.version}.")
+    results = audit_list_keys(list_key_paths, catalog)
+    results.extend(audit_catalog(TYPE_CHECKS, catalog))
+
+    print_results(results, verbose=args.verbose)
+    failed = [result for result in results if not result.ok]
+    if failed:
+        print(f"\nList-key audit failed: {len(failed)} check(s) failed.")
+        return 1
+    print(f"\nList-key audit passed: {len(results)} check(s) passed.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

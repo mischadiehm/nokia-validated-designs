@@ -47,6 +47,39 @@ def test_system_network_instance_is_not_keyed():
     assert path_from_tokens(["system", "network-instance"]) == "/system/network-instance"
 
 
+def test_network_instance_vxlan_interface_uses_name_key():
+    tokens = ["network-instance", "macvrf-v50", "vxlan-interface", "vxlan0.502"]
+    assert (
+        path_from_tokens(tokens)
+        == "/network-instance[name=macvrf-v50]/vxlan-interface[name=vxlan0.502]"
+    )
+
+
+def test_tunnel_vxlan_interface_uses_index_key():
+    tokens = ["tunnel-interface", "vxlan0", "vxlan-interface", "502"]
+    assert (
+        path_from_tokens(tokens)
+        == "/tunnel-interface[name=vxlan0]/vxlan-interface[index=502]"
+    )
+
+
+def test_composite_prefix_list_keys_render_together():
+    tokens = [
+        "routing-policy",
+        "prefix-set",
+        "prefixset-dc1-collapsed-spine",
+        "prefix",
+        "192.0.2.0/24",
+        "mask-length-range",
+        "32..32",
+    ]
+    assert (
+        path_from_tokens(tokens)
+        == "/routing-policy/prefix-set[name=prefixset-dc1-collapsed-spine]/"
+        "prefix[ip-prefix=192.0.2.0/24][mask-length-range=32..32]"
+    )
+
+
 def test_ethernet_segment_interface_uses_ethernet_interface_key():
     tokens = ["system", "network-instance", "protocols", "evpn", "ethernet-segments",
               "bgp-instance", "1", "ethernet-segment", "es-1", "interface", "lag1"]
@@ -153,13 +186,67 @@ def test_empty_dict_set_is_presence_leaf():
     ]
 
 
-def test_ipv4_address_becomes_keyed_list():
+def test_explicit_network_instance_vxlan_interface_uses_name_key():
+    cfg = {"set": {"network-instance": {"v50": {"vxlan-interface": {"vxlan0.502": {}}}}}}
+    payload = payload_from_config(cfg)
+    assert payload["update"] == [
+        {
+            "path": "/network-instance[name=v50]/vxlan-interface[name=vxlan0.502]",
+            "value": {},
+        }
+    ]
+
+
+def test_scalar_single_key_list_value_sets_key():
+    cfg = {"set": {"network-instance": {"v50": {"vxlan-interface": "vxlan0.502"}}}}
+    payload = payload_from_config(cfg)
+    assert payload["update"] == [
+        {
+            "path": "/network-instance[name=v50]/vxlan-interface[name=vxlan0.502]",
+            "value": {},
+        }
+    ]
+
+
+def test_scalar_evpn_advertise_value_sets_route_type_key():
+    cfg = {"set": {"interface": {"irb0": {"subinterface": {"1": {
+        "ipv4": {"arp": {"evpn": {"advertise": "dynamic"}}}
+    }}}}}}
+    payload = payload_from_config(cfg)
+    assert payload["update"] == [
+        {
+            "path": "/interface[name=irb0]/subinterface[index=1]/ipv4/"
+            "arp/evpn/advertise[route-type=dynamic]",
+            "value": {},
+        }
+    ]
+
+
+def test_scalar_ipv4_address_value_sets_ip_prefix_key():
     cfg = {"set": {"interface": {"ethernet-1/1": {"subinterface": {"0": {
         "ipv4": {"address": "10.0.0.1/31"}}}}}}}
     payload = payload_from_config(cfg)
-    item = payload["update"][0]
-    assert item["path"].endswith("/ipv4")
-    assert item["value"] == {"address": [{"ip-prefix": "10.0.0.1/31"}]}
+    assert payload["update"] == [
+        {
+            "path": "/interface[name=ethernet-1/1]/subinterface[index=0]/"
+            "ipv4/address[ip-prefix=10.0.0.1/31]",
+            "value": {},
+        }
+    ]
+
+
+def test_scalar_composite_key_leaf_value_completes_list_key():
+    cfg = {"set": {"routing-policy": {"prefix-set": {"ps1": {
+        "prefix": {"192.0.2.0/24": {"mask-length-range": "32..32"}}
+    }}}}}
+    payload = payload_from_config(cfg)
+    assert payload["update"] == [
+        {
+            "path": "/routing-policy/prefix-set[name=ps1]/"
+            "prefix[ip-prefix=192.0.2.0/24][mask-length-range=32..32]",
+            "value": {},
+        }
+    ]
 
 
 # --- top-level filter + validation ----------------------------------------

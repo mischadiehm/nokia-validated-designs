@@ -470,6 +470,277 @@ known defaults explicitly, and avoids the burden of enumerating every required
 leaf. Reach for `replace:` only when the generated path is config this automation
 fully owns.
 
+## SR Linux `srl_config` Dialect
+
+The readable YAML in `host_vars/` is an abstraction on top of the official SR
+Linux YANG/device implementation. Operators do not write raw gNMI paths, but
+`nokia.srlinux.config` still receives native path/value operations.
+
+Use these dialect rules when translating a path from the SR Linux YANG Browser:
+
+- Keyed YANG lists become YAML map keys directly below the list node.
+- Scalar leaves become scalar YAML values.
+- A single-key list may use scalar shorthand only when the target list entry has
+  no child leaves to set.
+- `{}` means an intentional empty payload at that exact path. In `set:` or
+  `replace:` it creates an empty/presence target; in `delete:` it marks the path
+  to remove.
+- Local shorthand such as `encap: untagged`, `primary: true`,
+  `activation-timer`, and `interface-standby-signaling-on-non-df` is renderer
+  behavior in `ansible/filter_plugins/srl_payload.py`, not generic YANG syntax.
+
+### Worked Translations
+
+Each example starts with an official/gNMI-style path, then shows the readable
+`srl_config` shape and the operation rendered for `nokia.srlinux.config`.
+
+Keyed list as YAML map key:
+
+```text
+/interface[name=ethernet-1/51]/description
+```
+
+```yaml
+srl_config:
+  set:
+    interface:
+      ethernet-1/51:
+        description: tor2-spine-lag
+```
+
+Renders an update at
+`/interface[name=ethernet-1/51]/description` with value `tor2-spine-lag`.
+
+Scalar leaf value:
+
+```text
+/system/name/host-name
+```
+
+```yaml
+srl_config:
+  set:
+    system:
+      name:
+        host-name: d3l-29-spine1
+```
+
+Renders an update at `/system/name/host-name` with value `d3l-29-spine1`.
+
+Single-key list scalar shorthand, when there are no child leaves:
+
+```text
+/interface[name=irb0]/subinterface[index=1]/ipv4/arp/evpn/advertise[route-type=dynamic]
+```
+
+```yaml
+srl_config:
+  set:
+    interface:
+      irb0:
+        subinterface:
+          '1':
+            ipv4:
+              arp:
+                evpn:
+                  advertise: dynamic
+```
+
+Renders an update at
+`/interface[name=irb0]/subinterface[index=1]/ipv4/arp/evpn/advertise[route-type=dynamic]`
+with value `{}`.
+
+Presence or empty target with `{}`:
+
+```text
+/network-instance[name=v10-simple]/interface[name=lag1.4096]
+```
+
+```yaml
+srl_config:
+  set:
+    network-instance:
+      v10-simple:
+        interface:
+          lag1.4096: {}
+```
+
+Renders an update at
+`/network-instance[name=v10-simple]/interface[name=lag1.4096]` with value `{}`.
+
+Delete of the factory SSH key:
+
+```text
+/system/aaa/authentication/admin-user/ssh-key
+```
+
+```yaml
+srl_config:
+  delete:
+    system:
+      aaa:
+        authentication:
+          admin-user:
+            ssh-key: {}
+```
+
+Renders a delete operation for
+`/system/aaa/authentication/admin-user/ssh-key` with no value.
+
+`network-instance/vxlan-interface`, keyed by `name`:
+
+```text
+/network-instance[name=macvrf-v50]/vxlan-interface[name=vxlan0.502]
+```
+
+```yaml
+srl_config:
+  set:
+    network-instance:
+      macvrf-v50:
+        vxlan-interface: vxlan0.502
+```
+
+Renders an update at
+`/network-instance[name=macvrf-v50]/vxlan-interface[name=vxlan0.502]` with value
+`{}`.
+
+`tunnel-interface/vxlan-interface`, keyed by `index`:
+
+```text
+/tunnel-interface[name=vxlan0]/vxlan-interface[index=502]/ingress/vni
+```
+
+```yaml
+srl_config:
+  set:
+    tunnel-interface:
+      vxlan0:
+        vxlan-interface:
+          '502':
+            type: bridged
+            ingress:
+              vni: 10050
+            egress:
+              source-ip: use-system-ipv4-address
+```
+
+Renders updates below
+`/tunnel-interface[name=vxlan0]/vxlan-interface[index=502]`, including
+`/tunnel-interface[name=vxlan0]/vxlan-interface[index=502]/ingress/vni` with
+value `10050`.
+
+Untagged VLAN encap shorthand:
+
+```text
+/interface[name=ethernet-1/56]/subinterface[index=4096]/vlan/encap/untagged
+```
+
+```yaml
+srl_config:
+  set:
+    interface:
+      ethernet-1/56:
+        subinterface:
+          '4096':
+            vlan:
+              encap: untagged
+```
+
+Renders an update at
+`/interface[name=ethernet-1/56]/subinterface[index=4096]/vlan/encap/untagged`
+with value `{}`.
+
+Primary address shorthand:
+
+```text
+/interface[name=irb0]/subinterface[index=1]/ipv4/address[ip-prefix=172.16.70.254/24]/primary
+```
+
+```yaml
+srl_config:
+  set:
+    interface:
+      irb0:
+        subinterface:
+          '1':
+            ipv4:
+              address:
+                172.16.70.254/24:
+                  primary: true
+```
+
+Renders an update at
+`/interface[name=irb0]/subinterface[index=1]/ipv4/address[ip-prefix=172.16.70.254/24]/primary`
+with value `""`.
+
+Read-only state paths are not authoring targets:
+
+```text
+/interface[name=*]/statistics/in-octets
+```
+
+```yaml
+# Do not author this under srl_config.
+```
+
+Paths marked `is-state: true` in the SR Linux path catalog are read-only. They
+do not render to `nokia.srlinux.config` operations; read or validate them with
+state-oriented tasks instead.
+
+### SR Linux List-Key Sync
+
+`ansible/filter_plugins/srl_payload.py` uses `ansible/srl_list_keys.py` to
+render YANG lists by full path context, not by bare node name. This matters
+because the same node name can use different YANG keys in different places:
+
+```python
+("network-instance", "vxlan-interface") -> ("name",)
+("tunnel-interface", "vxlan-interface") -> ("index",)
+```
+
+Use `tools/audit-srl-paths` to generate and check `ansible/srl_list_keys.py`
+against the released SR Linux path catalog. It fetches the release `paths.json`
+artifact from the SR Linux YANG Browser, extracts entries with `type=[list]`,
+and compares the discovered list keys with `LIST_KEY_PATHS`.
+
+```bash
+tools/audit-srl-paths --version v25.3.2
+```
+
+Use a local `paths.json` instead of fetching from GitHub:
+
+```bash
+tools/audit-srl-paths --paths-json /path/to/paths.json --version v25.3.2
+```
+
+Generate the mapping after changing the target SR Linux release:
+
+```bash
+tools/audit-srl-paths --version v25.3.2 --sync-list-keys
+```
+
+`srl_payload.py` consumes `srl_list_keys.py` at runtime. SR Linux still enforces
+schema truth during deploy with `nokia.srlinux.validate` and
+`nokia.srlinux.config`. The same release `paths.json` catalog is the source for
+list keys and for path facts such as type, enum values, defaults, and
+`is-state`.
+
+Run it when changing `ansible/filter_plugins/srl_payload.py`,
+`ansible/srl_list_keys.py`, or any shorthand encoder in `_append_value`. Also
+run it before moving this lab to a different SR Linux release:
+
+```bash
+tools/audit-srl-paths --version v25.7.2
+```
+
+If the generated mapping and tests pass, the renderer's list-key behavior
+matches that release.
+
+The repo does not parse YANG itself. It consumes the generated path catalog for
+list-key truth and keeps only the local YAML conveniences, such as scalar
+address and VXLAN attachment shorthand, in the filter.
+
 ## Design Rules
 
 - The Ansible inventory and `host_vars/` are the deployable intent. Add

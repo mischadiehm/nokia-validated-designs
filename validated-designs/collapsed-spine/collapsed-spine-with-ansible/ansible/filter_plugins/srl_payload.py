@@ -8,107 +8,138 @@ practice that structured-data transformation belongs in a plugin, not a
 template.
 """
 
+import importlib.util
+from pathlib import Path
 from typing import Any
 
 RESOURCE_KEYS = ("update", "replace", "delete")
 
-LIST_KEYS = {
-    "afi-safi": "afi-safi-name",
-    "bgp-instance": "id",
-    "buffer": "buffer-name",
-    "dynamic-neighbor": "peer-address",
-    "ethernet-segment": "name",
-    "group": "group-name",
-    "interface": "name",
-    "network-instance": "name",
-    "policy": "name",
-    "prefix": "ip-prefix",
-    "prefix-set": "name",
-    "statement": "name",
-    "subinterface": "index",
-    "subsystem": "subsystem-name",
-    "tunnel-interface": "name",
-    "vxlan-interface": "index",
-    "address": "ip-prefix",
-    "advertise": "route-type",
-}
+
+def _load_list_key_paths() -> dict[tuple[str, ...], tuple[str, ...]]:
+    list_keys_path = Path(__file__).resolve().parents[1] / "srl_list_keys.py"
+    spec = importlib.util.spec_from_file_location("srl_list_keys", list_keys_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"could not load {list_keys_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.LIST_KEY_PATHS
 
 
-def _is_keyed(tokens: list[str], index: int) -> bool:
-    """Return True when ``tokens[index]`` is a YANG keyed-list node.
+LIST_KEY_PATHS = _load_list_key_paths()
 
-    A keyed-list node means the following token is the list key value and the
-    two must be rendered as ``node[key=value]`` rather than two path segments.
+
+def _read_key_values(
+    tokens: list[str],
+    index: int,
+    key_names: tuple[str, ...],
+) -> tuple[list[str], int] | None:
+    """Read key values after a YANG list node.
+
+    Single-key lists use the readable form ``list-name: key-value``. Composite
+    lists may either provide values directly or include the later key-leaf name.
     """
-    token = tokens[index]
-    if token not in LIST_KEYS or index + 1 >= len(tokens):
-        return False
-    if token == "network-instance" and tokens[:index] == ["system"]:
-        return False
-    if token == "prefix":
-        return index >= 2 and tokens[index - 2] == "prefix-set"
-    if token == "address":
-        return index >= 1 and tokens[index - 1] in ("ipv4", "ipv6")
-    return True
+    cursor = index + 1
+    key_values = []
+    for key_index, key_name in enumerate(key_names):
+        if cursor >= len(tokens):
+            return None
+        if key_index > 0 and tokens[cursor] == key_name:
+            cursor += 1
+            if cursor >= len(tokens):
+                return None
+        key_values.append(tokens[cursor])
+        cursor += 1
+    return key_values, cursor
 
 
-def _key_name(tokens: list[str], index: int) -> str:
-    """Return the YANG key-leaf name for the keyed-list node at ``index``."""
-    if tokens[index] == "interface" and index >= 1 and tokens[index - 1] == "dynamic-neighbors":
-        return "interface-name"
-    if tokens[index] == "interface" and index >= 2 and tokens[index - 2] == "ethernet-segment":
-        return "ethernet-interface"
-    if tokens[index] == "subinterface" and tokens[:index] == ["bfd"]:
-        return "id"
-    return LIST_KEYS[tokens[index]]
+def _key_selector(key_names: tuple[str, ...], key_values: list[str]) -> str:
+    return "".join(
+        f"[{key_name}={key_value}]"
+        for key_name, key_value in zip(key_names, key_values, strict=True)
+    )
 
 
 def path_from_tokens(tokens: list[str]) -> str:
     """Render accumulated dict keys into a gNMI-style SR Linux path string."""
     parts = []
     index = 0
+    node_path = []
     while index < len(tokens):
         token = tokens[index]
-        if _is_keyed(tokens, index):
-            parts.append(f"{token}[{_key_name(tokens, index)}={tokens[index + 1]}]")
-            index += 2
+        node_path.append(token)
+        key_names = LIST_KEY_PATHS.get(tuple(node_path))
+        key_values = _read_key_values(tokens, index, key_names) if key_names else None
+        if key_values:
+            values, index = key_values
+            parts.append(f"{token}{_key_selector(key_names, values)}")
         else:
             parts.append(token)
             index += 1
     return "/" + "/".join(parts)
 
 
+def _node_path_from_tokens(tokens: list[str]) -> tuple[str, ...]:
+    """Return only YANG node names from tokens, skipping list key values."""
+    index = 0
+    node_path = []
+    while index < len(tokens):
+        token = tokens[index]
+        node_path.append(token)
+        key_names = LIST_KEY_PATHS.get(tuple(node_path))
+        key_values = _read_key_values(tokens, index, key_names) if key_names else None
+        if key_values:
+            _, index = key_values
+        else:
+            index += 1
+    return tuple(node_path)
+
+
+def _pending_composite_key(tokens: list[str]) -> bool:
+    """Return True when tokens end at a later key leaf for a composite list."""
+    index = 0
+    node_path = []
+    while index < len(tokens):
+        token = tokens[index]
+        node_path.append(token)
+        key_names = LIST_KEY_PATHS.get(tuple(node_path))
+        if not key_names:
+            index += 1
+            continue
+
+        cursor = index + 1
+        for key_index, key_name in enumerate(key_names):
+            if cursor >= len(tokens):
+                return False
+            if key_index > 0 and tokens[cursor] == key_name:
+                if cursor == len(tokens) - 1:
+                    return True
+                cursor += 1
+                if cursor >= len(tokens):
+                    return False
+            cursor += 1
+        index = cursor
+    return False
+
+
 def _append_value(tokens: list[str], value: Any, output: list[dict]) -> None:
     """Encode a leaf ``value`` at ``tokens`` into a ``{path, value}`` entry.
 
     Handles the SR Linux leaf shapes that do not follow the simple
-    ``path + scalar`` rule (keyed addresses, presence leaves, EVPN advertise
-    route-types, boolean/zero coercion, etc.).
+    ``path + scalar`` rule (presence leaves, boolean/zero coercion, etc.).
     """
-    if len(tokens) >= 2 and tokens[-2:] == ["vlan", "encap"] and value == "untagged":
+    key_names = LIST_KEY_PATHS.get(_node_path_from_tokens(tokens))
+    if _pending_composite_key(tokens):
+        output.append({"path": path_from_tokens(tokens + [value]), "value": {}})
+    elif key_names and len(key_names) == 1:
+        output.append({"path": path_from_tokens(tokens + [value]), "value": {}})
+    elif len(tokens) >= 2 and tokens[-2:] == ["vlan", "encap"] and value == "untagged":
         output.append({"path": path_from_tokens(tokens + ["untagged"]), "value": {}})
-    elif len(tokens) >= 3 and tokens[-3] == "prefix" and tokens[-1] == "mask-length-range":
-        parent = path_from_tokens(tokens[:-3])
-        output.append({"path": f"{parent}/prefix[ip-prefix={tokens[-2]}][mask-length-range={value}]", "value": {}})
-    elif len(tokens) >= 2 and tokens[-1] == "address" and tokens[-2] in ("ipv4", "ipv6") and isinstance(value, str):
-        output.append({"path": path_from_tokens(tokens[:-1]), "value": {"address": [{"ip-prefix": value}]}})
     elif tokens and tokens[-1] == "interface-standby-signaling-on-non-df":
         output.append({"path": path_from_tokens(tokens), "value": {}})
     elif tokens and tokens[-1] == "primary":
         output.append({"path": path_from_tokens(tokens), "value": ""})
-    elif len(tokens) >= 2 and tokens[-2:] == ["evpn", "advertise"] and isinstance(value, str):
-        output.append({"path": path_from_tokens(tokens + [value]), "value": {}})
     elif tokens and tokens[-1] == "activation-timer" and "ethernet-segment" in tokens:
         output.append({"path": path_from_tokens(tokens[:-1]), "value": {"activation-timer": int(value)}})
-    elif tokens and tokens[-1] == "interface" and "ethernet-segment" in tokens and isinstance(value, str):
-        output.append({"path": path_from_tokens(tokens + [value]), "value": {}})
-    elif (
-        len(tokens) == 3
-        and tokens[0] == "network-instance"
-        and tokens[-1] == "vxlan-interface"
-        and isinstance(value, str)
-    ):
-        output.append({"path": path_from_tokens(tokens[:-1]), "value": {"vxlan-interface": [{"name": value}]}})
     else:
         if type(value) is bool:
             value = str(value).lower()
