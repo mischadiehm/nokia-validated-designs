@@ -30,9 +30,11 @@ The decisions worth reacting to:
   `ansible/host_vars/<node>.yml` as a plain tree under `srl_config`. A filter
   renders it to native `nokia.srlinux.config` paths. You think in structure, not in
   gNMI path strings.
-- **One validated transaction per node.** `srl_config` runs `nokia.srlinux.validate`
-  then `nokia.srlinux.config` — the device schema-checks the candidate, then applies
-  it atomically (`save_when: changed`).
+- **One validated transaction per node.** By default `srl_config` uses the official
+  Nokia module flow: validate the rendered intent, ask SR Linux for the diff, and
+  apply only when the device reports a change. Optional host-side pruning can be
+  enabled when smaller config payloads matter more than using device-side diff as
+  the only reducer.
 - **`set:` + targeted `delete:`, not `replace:`.** Changes stay non-destructive on
   shared/lab nodes; we prune only known defaults explicitly instead of enumerating
   every leaf to own a path. `replace:` exists but is opt-in.
@@ -73,6 +75,7 @@ uv run ansible-galaxy collection install -r requirements.yml
 
 containerlab deploy -t 2-way-collapsed-spine.clab.yaml      # expect 11 nodes
 
+uv run ansible-playbook playbooks/deploy.yml --tags srl_schema_check
 uv run ansible-playbook playbooks/deploy.yml                # apply intent
 sleep 20                                                    # let LACP / ES converge
 uv run ansible-playbook playbooks/validate.yml              # assert state
@@ -281,14 +284,17 @@ anycast GW → IP-VRF → VXLAN over eBGP underlay → remote spine → destinat
 How a config change flows from model to device:
 
 ```text
-SR Linux YANG Browser  ->  host_vars/<node>.yml  ->  srl_payload filter  ->  nokia.srlinux.config
-   (find the path)          (readable srl_config)      (native operations)      (validate + apply)
+SR Linux YANG Browser -> host_vars/<node>.yml -> srl_payload filter -> validate -> config
+   (find the path)       (readable srl_config)   (native operations)   (device diff)
 ```
 
 You author intent with three buckets under `srl_config`. The filter
-(`ansible/filter_plugins/srl_payload.py`) renders them and the device applies them
-in one transaction (deletes → replaces → updates). It has no `state:` keyword; these
-are the equivalent:
+(`ansible/filter_plugins/srl_payload.py`) renders the full intent, the role
+validates it, and `nokia.srlinux.config` asks SR Linux for the effective diff
+before applying. If SR Linux reports no diff, the config module exits unchanged.
+When host-side pruning is explicitly enabled, the role first reads running config,
+prunes unchanged operations on the Ansible host, and sends only the local delta to
+validate/config. It has no `state:` keyword; these are the equivalent:
 
 | Bucket | Maps to | Meaning | State-module analogue |
 | --- | --- | --- | --- |
@@ -375,10 +381,54 @@ tools/audit-srl-paths --version v25.3.2                 # check against a releas
 tools/audit-srl-paths --version v25.3.2 --sync-list-keys # regenerate the map
 ```
 
-Run it when changing `srl_payload.py` / `srl_list_keys.py` or any shorthand encoder,
-and before moving the lab to a new SR Linux release. SR Linux still enforces schema
-truth at deploy via `nokia.srlinux.validate`. The filter transform is unit-tested —
-`uv run pytest`.
+Before generating a live preview or applying intent, the `srl_config` role reads
+the live SR Linux version and compares it with `SRL_LIST_KEYS_VERSION`. If a
+device is newer than the checked-in catalog, the role fails before payload
+rendering, device validation, diff generation, or config apply. This keeps
+`--check --diff` from showing a diff built from stale schema metadata.
+`deploy.yml` sets `any_errors_fatal: true` on the `srl` play, so a single newer
+node aborts the whole fabric apply rather than excluding itself while siblings
+deploy.
+
+The guard compares down to the patch level, so even a patch bump (for example
+`v25.3.2` to `v25.3.3`) trips it by design; re-sync the catalog as below. The
+inverse direction is intentionally not guarded: a same-or-newer catalog against
+an older device is allowed, since SR Linux's own `nokia.srlinux.validate`
+remains the schema backstop at apply. The guard is tag-gated on
+`srl_schema_check`, so `--skip-tags srl_schema_check` disables it; don't combine
+that flag with a live deploy.
+
+Use the tagged preflight for a no-apply schema check:
+
+```bash
+uv run ansible-playbook playbooks/deploy.yml --tags srl_schema_check
+```
+
+When moving the lab to a newer SR Linux release, upgrade the local inventory
+metadata first:
+
+```bash
+tools/audit-srl-paths --version v26.3.1 --sync-list-keys
+uv run pytest
+uv run ansible-playbook playbooks/deploy.yml --syntax-check
+uv run ansible-lint playbooks/deploy.yml playbooks/validate.yml
+```
+
+Then review `ansible/host_vars/` and `ansible/group_vars/` for release-specific
+schema changes before deploying. SR Linux still enforces schema truth at deploy via
+`nokia.srlinux.validate`; the version guard only prevents using older renderer
+metadata against a newer device.
+
+Optional host-side pruning is available with:
+
+```bash
+uv run ansible-playbook playbooks/deploy.yml --check --diff -e srl_prune_unchanged_on_host=true
+```
+
+This asks SR Linux for current running values, computes a local delta on the
+Ansible host, and skips validate/config when that delta is empty. It is useful for
+testing reduced payloads, but the default remains device-side diff because SR
+Linux has the final schema and value-normalization truth.
 
 ### Design rules
 

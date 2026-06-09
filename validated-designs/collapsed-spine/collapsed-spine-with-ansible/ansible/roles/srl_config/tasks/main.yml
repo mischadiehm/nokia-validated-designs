@@ -1,32 +1,94 @@
 ---
-- name: Build SR Linux payload from node vars
-  ansible.builtin.set_fact:
-    srl_config_payload: "{{ hostvars[inventory_hostname] | srl_payload }}"
-
-- name: Preflight SR Linux version
-  nokia.srlinux.cli:
-    commands:
-      - show version
-    output_format: text
+- name: Read SR Linux software version
+  nokia.srlinux.get:
+    paths:
+      - path: /system/information/version
+        datastore: state
   register: srl_config_version
+  tags:
+    - srl_schema_check
 
 - name: Assert SR Linux responded to preflight
   ansible.builtin.assert:
     that:
       - srl_config_version is succeeded
       - srl_config_version is defined
+      - srl_config_version.result is defined
+      - srl_config_version.result | length == 1
     fail_msg: "SR Linux version preflight did not return successfully."
+  tags:
+    - srl_schema_check
+
+- name: Set SR Linux schema guard facts
+  ansible.builtin.set_fact:
+    srl_config_live_version: "{{ srl_config_version.result[0] | srl_release_version }}"
+    srl_config_catalog_version: "{{ '' | srl_list_keys_version }}"
+  tags:
+    - srl_schema_check
+
+- name: Assert SR Linux catalog is not older than the device
+  ansible.builtin.assert:
+    that:
+      - not (srl_config_live_version | srl_version_newer_than(srl_config_catalog_version))
+    fail_msg: |-
+      Refusing to preview or apply SR Linux intent built from catalog {{ srl_config_catalog_version }}
+      to newer device {{ srl_config_live_version }} on {{ inventory_hostname }}.
+
+      Upgrade the Ansible inventory metadata first:
+        tools/audit-srl-paths --version {{ srl_config_live_version }} --sync-list-keys
+        uv run pytest
+        uv run ansible-playbook playbooks/deploy.yml --syntax-check
+        uv run ansible-lint playbooks/deploy.yml playbooks/validate.yml
+
+      Then review ansible/host_vars and ansible/group_vars for release-specific
+      schema changes before requesting a live deploy.
+    success_msg: >-
+      SR Linux device {{ srl_config_live_version }} is not newer than inventory
+      catalog {{ srl_config_catalog_version }}.
+  tags:
+    - srl_schema_check
+
+- name: Build SR Linux payload from node vars
+  ansible.builtin.set_fact:
+    srl_config_payload: "{{ hostvars[inventory_hostname] | srl_payload }}"
+
+- name: Use full SR Linux payload by default
+  ansible.builtin.set_fact:
+    srl_config_apply_payload: "{{ srl_config_payload }}"
+  when: not (srl_prune_unchanged_on_host | default(false) | bool)
+
+- name: Build SR Linux running read plan
+  ansible.builtin.set_fact:
+    srl_config_read_plan: "{{ srl_config_payload | srl_payload_read_plan }}"
+  when: srl_prune_unchanged_on_host | default(false) | bool
+
+- name: Read SR Linux running config for local delta
+  nokia.srlinux.get:
+    paths: "{{ srl_config_read_plan | srl_payload_read_commands }}"
+  register: srl_config_running
+  when:
+    - srl_prune_unchanged_on_host | default(false) | bool
+    - srl_config_read_plan | length > 0
+
+- name: Build SR Linux delta payload on Ansible host
+  ansible.builtin.set_fact:
+    srl_config_apply_payload: >-
+      {{ srl_config_payload
+         | srl_payload_delta(srl_config_read_plan, srl_config_running.result | default([])) }}
+  when: srl_prune_unchanged_on_host | default(false) | bool
 
 - name: Validate SR Linux candidate payload
   nokia.srlinux.validate:
-    update: "{{ srl_config_payload['update'] }}"
-    replace: "{{ srl_config_payload['replace'] }}"
-    delete: "{{ srl_config_payload['delete'] }}"
+    update: "{{ srl_config_apply_payload['update'] }}"
+    replace: "{{ srl_config_apply_payload['replace'] }}"
+    delete: "{{ srl_config_apply_payload['delete'] }}"
+  when: srl_config_apply_payload | srl_payload_has_ops
 
 - name: Apply SR Linux payload in one transaction
   nokia.srlinux.config:
-    update: "{{ srl_config_payload['update'] }}"
-    replace: "{{ srl_config_payload['replace'] }}"
-    delete: "{{ srl_config_payload['delete'] }}"
+    update: "{{ srl_config_apply_payload['update'] }}"
+    replace: "{{ srl_config_apply_payload['replace'] }}"
+    delete: "{{ srl_config_apply_payload['delete'] }}"
     save_when: "{{ srl_save_when | default('changed') }}"
     confirm_timeout: "{{ srl_confirm_timeout | default(omit) }}"
+  when: srl_config_apply_payload | srl_payload_has_ops
