@@ -43,6 +43,22 @@
     - not ansible_check_mode
     - item.value.vlan is not defined
 
+- name: Flush endpoint IPv4 addresses on managed interfaces
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip -4 addr flush dev {{ item.key }} scope global 2>/dev/null || true'"
+  loop: "{{ interfaces | default({}) | dict2items }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Flush endpoint IPv6 addresses on managed interfaces
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip -6 addr flush dev {{ item.key }} scope global 2>/dev/null || true'"
+  loop: "{{ interfaces | default({}) | dict2items }}"
+  changed_when: false
+  when: not ansible_check_mode
+
 - name: Add endpoint IPv4 addresses
   community.docker.docker_container_exec:
     container: "{{ ansible_host }}"
@@ -58,6 +74,26 @@
   loop: "{{ interfaces | default({}) | dict2items | subelements('value.ipv6', skip_missing=True) }}"
   changed_when: false
   when: not ansible_check_mode
+
+- name: Flush endpoint IPv4 policy route tables
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip route flush table {{ item.table }} 2>/dev/null || true'"
+  loop: "{{ routes | default([]) }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - item.family == "ipv4"
+
+- name: Flush endpoint IPv6 policy route tables
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip -6 route flush table {{ item.table }} 2>/dev/null || true'"
+  loop: "{{ routes | default([]) }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - item.family == "ipv6"
 
 - name: Add endpoint IPv4 connected routes to policy tables
   community.docker.docker_container_exec:
