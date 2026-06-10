@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Full gate matrix for two-stripe-rail-optimized-with-ansible (34 nodes).
 # Run ON the debian-clab VM. RAM preflight: 22 SR Linux containers need
-# roughly 50 GB; the script refuses to deploy without it.
+# roughly 45-50 GB; the script refuses to deploy without it.
 set -euo pipefail
 
 echo "== 0. sizing preflight =="
 avail_gb=$(free -g | awk '/^Mem:/{print $7}')
-if [ "${avail_gb}" -lt 50 ]; then
+if [ "${avail_gb}" -lt 45 ]; then
   echo "Only ${avail_gb} GB available; this lab needs ~50 GB."
   echo "Render gates (pytest/syntax/lint) still apply; run the lab on a bigger host."
   RENDER_ONLY=1
@@ -38,7 +38,7 @@ uv run ansible-playbook playbooks/deploy.yml
 sleep 30
 uv run ansible-playbook playbooks/validate.yml
 uv run ansible-playbook playbooks/deploy.yml | tee /tmp/two-stripe-nvidia-idem.log
-grep -E "changed=0.*failed=0" /tmp/two-stripe-nvidia-idem.log | wc -l | grep -q 26 || {
+[ "$(grep -cE 'changed=0.*unreachable=0.*failed=0' /tmp/two-stripe-nvidia-idem.log)" -eq 26 ] || {
   echo "idempotency gate FAILED"; exit 1; }
 
 echo "ALL GATES GREEN"

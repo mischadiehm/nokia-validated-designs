@@ -73,6 +73,14 @@
   changed_when: false
   when: not ansible_check_mode
 
+- name: Add endpoint IPv6 addresses
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip -6 addr add {{ item.1 }} dev {{ item.0.key }} 2>/dev/null || true'"
+  loop: "{{ interfaces | default({}) | dict2items | subelements('value.ipv6', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
 - name: Add endpoint dummy IPv4 addresses
   community.docker.docker_container_exec:
     container: "{{ ansible_host }}"

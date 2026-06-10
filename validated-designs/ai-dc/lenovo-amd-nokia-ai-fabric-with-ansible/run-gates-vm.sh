@@ -32,7 +32,7 @@ uv run ansible-playbook playbooks/validate.yml
 
 echo "== 7. idempotency =="
 uv run ansible-playbook playbooks/deploy.yml | tee /tmp/lenovo-idem.log
-grep -E "changed=0.*failed=0" /tmp/lenovo-idem.log | wc -l | grep -q 10 || {
+[ "$(grep -cE 'changed=0.*unreachable=0.*failed=0' /tmp/lenovo-idem.log)" -eq 10 ] || {
   echo "idempotency gate FAILED"; exit 1; }
 
 echo "ALL GATES GREEN"

@@ -1,6 +1,0 @@
-ansible-core==2.21.0
-ansible-lint==26.4.0
-pyyaml<7,>=6
-requests==2.34.2
-rich<15,>=13.7
-typer<1,>=0.12

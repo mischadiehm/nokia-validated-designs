@@ -1,7 +1,0 @@
-pyproject.toml
-lenovo_amd_nokia_ai_fabric_with_ansible.egg-info/PKG-INFO
-lenovo_amd_nokia_ai_fabric_with_ansible.egg-info/SOURCES.txt
-lenovo_amd_nokia_ai_fabric_with_ansible.egg-info/dependency_links.txt
-lenovo_amd_nokia_ai_fabric_with_ansible.egg-info/requires.txt
-lenovo_amd_nokia_ai_fabric_with_ansible.egg-info/top_level.txt
-tests/test_render_invariants.py

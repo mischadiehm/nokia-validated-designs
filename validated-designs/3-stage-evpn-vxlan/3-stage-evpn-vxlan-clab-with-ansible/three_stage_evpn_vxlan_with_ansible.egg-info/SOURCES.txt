@@ -1,8 +1,0 @@
-pyproject.toml
-tests/test_clab_network_tester.py
-tests/test_cli_fidelity.py
-three_stage_evpn_vxlan_with_ansible.egg-info/PKG-INFO
-three_stage_evpn_vxlan_with_ansible.egg-info/SOURCES.txt
-three_stage_evpn_vxlan_with_ansible.egg-info/dependency_links.txt
-three_stage_evpn_vxlan_with_ansible.egg-info/requires.txt
-three_stage_evpn_vxlan_with_ansible.egg-info/top_level.txt

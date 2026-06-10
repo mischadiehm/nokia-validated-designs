@@ -32,7 +32,7 @@ uv run ansible-playbook playbooks/validate.yml
 
 echo "== 7. idempotency =="
 uv run ansible-playbook playbooks/deploy.yml | tee /tmp/3stage-idem.log
-grep -E "changed=0.*failed=0" /tmp/3stage-idem.log | wc -l | grep -q 17 || {
+[ "$(grep -cE 'changed=0.*unreachable=0.*failed=0' /tmp/3stage-idem.log)" -eq 17 ] || {
   echo "idempotency gate FAILED"; exit 1; }
 
 echo "== 8. data plane =="

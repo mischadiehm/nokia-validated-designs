@@ -403,8 +403,20 @@ Use the tagged preflight for a no-apply schema check:
 uv run ansible-playbook playbooks/deploy.yml --tags srl_schema_check
 ```
 
-When moving the lab to a newer SR Linux release, upgrade the local inventory
-metadata first:
+When moving the lab to a newer SR Linux release, start with the release
+advisor (collection repo; consume it, do not fork it). It audits the list-key
+metadata, diffs the two release path catalogs, renders this inventory offline
+(`ansible_connection=local` is forced, no device contact), and writes a
+warnings file listing which of this lab's intent each catalog change affects,
+per host:
+
+```bash
+# in the collection repo
+uv run scripts/srl-release-advisor --from v25.10.1 --to v26.3.1 \
+    --inventory <this repo>/ansible/inventory.yml
+```
+
+Then upgrade the local inventory metadata:
 
 ```bash
 uv run scripts/sync-srl-list-keys --version v26.3.1 --sync    # in the collection repo
@@ -413,8 +425,9 @@ uv run ansible-playbook playbooks/deploy.yml --syntax-check
 uv run ansible-lint playbooks/deploy.yml playbooks/validate.yml
 ```
 
-Then review `ansible/host_vars/` and `ansible/group_vars/` for release-specific
-schema changes before deploying. SR Linux still enforces schema truth at deploy via
+Then work through the warnings file and review `ansible/host_vars/` and
+`ansible/group_vars/` for release-specific schema changes before deploying.
+Warnings are predictions: SR Linux still enforces schema truth at deploy via
 `nokia.srlinux.validate`; the version guard only prevents using older renderer
 metadata against a newer device.
 
@@ -444,6 +457,10 @@ Linux has the final schema and value-normalization truth.
 
 - **`scripts/sync-srl-list-keys`** (collection repo) — syncs list-key rendering against a given SR Linux
   release (see [List-key sync](#list-key-sync)).
+- **`scripts/srl-release-advisor`** (collection repo) — one command per SR Linux
+  release: audits the list-key metadata, diffs the release path catalogs, and
+  matches the changes against this inventory's rendered operations into a
+  per-host warnings file. Offline; never connects to a node.
 - **`tools/clab-network-tester`** — self-contained `uv` script that generates
   source-bound endpoint traffic across the real data plane. Auto-detects the topology
   and loads `network-tests/2-way-collapsed-spine.yml`; reads `ansible/inventory.yml`

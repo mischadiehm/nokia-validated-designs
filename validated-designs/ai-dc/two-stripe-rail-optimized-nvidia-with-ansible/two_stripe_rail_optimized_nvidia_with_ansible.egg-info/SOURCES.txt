@@ -1,7 +1,0 @@
-pyproject.toml
-tests/test_render_invariants.py
-two_stripe_rail_optimized_nvidia_with_ansible.egg-info/PKG-INFO
-two_stripe_rail_optimized_nvidia_with_ansible.egg-info/SOURCES.txt
-two_stripe_rail_optimized_nvidia_with_ansible.egg-info/dependency_links.txt
-two_stripe_rail_optimized_nvidia_with_ansible.egg-info/requires.txt
-two_stripe_rail_optimized_nvidia_with_ansible.egg-info/top_level.txt

@@ -38,7 +38,7 @@ uv run ansible-playbook playbooks/deploy.yml
 sleep 30
 uv run ansible-playbook playbooks/validate.yml
 uv run ansible-playbook playbooks/deploy.yml | tee /tmp/two-stripe-idem.log
-grep -E "changed=0.*failed=0" /tmp/two-stripe-idem.log | wc -l | grep -q 34 || {
+[ "$(grep -cE 'changed=0.*unreachable=0.*failed=0' /tmp/two-stripe-idem.log)" -eq 34 ] || {
   echo "idempotency gate FAILED"; exit 1; }
 
 echo "ALL GATES GREEN"

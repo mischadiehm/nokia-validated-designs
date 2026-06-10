@@ -72,11 +72,3 @@ all:
           ansible_host: s3
         s4:
           ansible_host: s4
-          ansible_host: weka1
-          ansible_host: weka2
-          ansible_host: weka3
-          ansible_host: weka4
-          ansible_host: weka5
-          ansible_host: weka6
-          ansible_host: weka7
-          ansible_host: weka8

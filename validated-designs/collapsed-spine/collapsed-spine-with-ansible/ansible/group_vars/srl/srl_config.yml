@@ -1,5 +1,5 @@
 ---
-# Builds the srl_config that the srl_payload filter consumes, by deep-merging
+# Builds the srl_config that the nokia.srlinux.to_config_operations filter consumes, by deep-merging
 # the layers below (later wins). One file per group contributes a layer:
 #   srl_common        - this file: identical on every SR Linux node
 #   srl_tor_common    - group_vars/tors/srl_config.yml

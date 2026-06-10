@@ -1,6 +1,7 @@
 # ignore clab lab dir
 clab-*
 !validated-designs/collapsed-spine/collapsed-spine-with-ansible/tools/clab-network-tester
+!validated-designs/3-stage-evpn-vxlan/3-stage-evpn-vxlan-clab-with-ansible/tools/clab-network-tester
 
 # ignore clab bak files
 **/*.yaml.bak
@@ -9,3 +10,6 @@ clab-*
 # ignore Python bytecode
 **/__pycache__/
 *.pyc
+
+# python build artifacts
+*.egg-info/
