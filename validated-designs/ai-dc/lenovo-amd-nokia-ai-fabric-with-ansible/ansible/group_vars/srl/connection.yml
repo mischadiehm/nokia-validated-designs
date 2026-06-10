@@ -1,0 +1,10 @@
+---
+# Connection and auth for every SR Linux node (spines + leaves).
+# Moved out of inventory.yml so the inventory only carries topology and mgmt IPs.
+ansible_connection: ansible.netcommon.httpapi
+ansible_network_os: nokia.srlinux.srlinux
+ansible_user: admin
+ansible_password: "NokiaSrl1!"          # lab default; use vault for anything real
+ansible_httpapi_use_ssl: true
+ansible_httpapi_validate_certs: false   # self-signed lab certs
+ansible_httpapi_port: 443

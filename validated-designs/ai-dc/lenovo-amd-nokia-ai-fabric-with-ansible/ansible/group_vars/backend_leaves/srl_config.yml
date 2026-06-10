@@ -1,0 +1,47 @@
+---
+# Backend (RoCEv2) layer, derived from the EDA Backend resource
+# (../lenovo-amd-nokia-ai-fabric/eda-manifests/backend-fabric.yaml):
+#   rocev2QoS: ecn slopes 5..80 percent, max drop 100 percent, PFC deadlock
+#   detection/recovery 750 ms, queue maximum-burst-size 52110640 bytes.
+# Paths verified against the SR Linux v25.10.1 release path catalog
+# (yang-browser paths.json): queue-management-profile wred slopes,
+# buffer-allocation-profile pfc-queue burst, pfc-mapping-profile deadlock,
+# linecard pfc-buffer-reservation, qos interface output binding.
+# Per-rail routed access and the rail ip-vrfs live in host_vars (the rails
+# are leaf-local: leaf1 owns rail1..rail4, leaf2 owns rail5..rail8).
+srl_backend_common:
+  update:
+    qos:
+      buffer-management:
+        queue-management-profile:
+          rocev2-ecn:
+            wred:
+              wred-slope:
+                all:
+                  drop-probability:
+                    all:
+                      enable-ecn:
+                        'true':
+                          min-threshold-percent: 5
+                          max-threshold-percent: 80
+                          max-drop-probability-percent: 100
+                          slope-enabled: true
+        buffer-allocation-profile:
+          rocev2-burst:
+            queues:
+              pfc-queue:
+                pfc-0:
+                  maximum-burst-size: 52110640
+      pfc-mapping-profile:
+        rocev2-pfc:
+          received-pfc-pause-frames:
+            deadlock:
+              enable: true
+              detection-timer: 750
+              recovery-timer: 750
+      linecard:
+        '1':
+          forwarding-complex:
+            '0':
+              input:
+                pfc-buffer-reservation: 10

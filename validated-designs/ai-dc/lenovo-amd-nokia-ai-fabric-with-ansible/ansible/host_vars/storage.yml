@@ -1,0 +1,16 @@
+---
+# Mirrors base-configs/storage.sh: br0 bridging eth1 (storage-leaf1) and
+# eth2 (storage-leaf2).
+interfaces: {}
+bridges:
+  br0:
+    ipv4:
+    - 198.51.100.3/24
+    members:
+    - eth1
+    - eth2
+bonds: {}
+routes: []
+endpoint_ipv4_ping_targets:
+- 198.51.100.1
+- 198.51.100.2

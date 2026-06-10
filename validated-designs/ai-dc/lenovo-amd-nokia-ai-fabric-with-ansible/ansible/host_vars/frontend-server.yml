@@ -1,0 +1,19 @@
+---
+# Mirrors base-configs/frontend-server.sh: active-backup bond (primary eth1,
+# miimon 100) across both frontend leaves.
+interfaces:
+  bond0:
+    ipv4:
+    - 172.16.10.3/24
+bonds:
+  bond0:
+    mode: active-backup
+    primary: eth1
+    miimon: 100
+    members:
+    - eth1
+    - eth2
+routes: []
+endpoint_ipv4_ping_targets:
+- 172.16.10.1
+- 172.16.10.2

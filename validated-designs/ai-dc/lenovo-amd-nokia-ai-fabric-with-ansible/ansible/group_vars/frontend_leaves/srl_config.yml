@@ -1,0 +1,87 @@
+---
+# Frontend layer: one SIMPLE bridge domain (no EVPN) spanning both leaves via
+# a two-link LACP LAG (frontend-leafX e1-2/e1-3, the EDA Interface resources
+# frontend-leaf1-leaf2-lag / frontend-leaf2-leaf1-lag). Edge ports: e1-1 (gpu
+# eth9), e1-4 (frontend-server bond member). Bridge-table settings mirror the
+# BridgeDomain resource (macAging 300, duplication 9/3/5 stop-learning).
+srl_frontend_common:
+  update:
+    interface:
+      ethernet-1/1:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      ethernet-1/2:
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+      ethernet-1/3:
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+      ethernet-1/4:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      lag1:
+        description: frontend-leaf1-leaf2-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 11
+            system-priority: 32768
+    system:
+      lldp:
+        interface:
+          ethernet-1/1:
+            admin-state: enable
+          ethernet-1/2:
+            admin-state: enable
+          ethernet-1/3:
+            admin-state: enable
+          ethernet-1/4:
+            admin-state: enable
+    network-instance:
+      untagged-frontend:
+        type: mac-vrf
+        admin-state: enable
+        description: untagged-frontend
+        interface:
+          ethernet-1/1.4096: {}
+          ethernet-1/4.4096: {}
+          lag1.4096: {}
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning

@@ -1,0 +1,7 @@
+---
+# Per-node remainder; the fabric layer lives in group_vars/frontend_leaves/.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: frontend-leaf2

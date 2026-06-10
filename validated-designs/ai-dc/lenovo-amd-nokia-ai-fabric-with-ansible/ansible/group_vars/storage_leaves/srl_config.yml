@@ -1,0 +1,65 @@
+---
+# Storage layer: one SIMPLE bridge domain per leaf (no inter-leaf link; the
+# storage server bridges both leaves, gpu storage bonds are active-backup).
+# Edge ports: e1-1 (gpu1 eth10/11), e1-2 (gpu2 eth10/11), e1-3 (storage
+# server). Bridge-table settings mirror the BridgeDomain resource.
+srl_storage_common:
+  update:
+    interface:
+      ethernet-1/1:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      ethernet-1/2:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      ethernet-1/3:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+    system:
+      lldp:
+        interface:
+          ethernet-1/1:
+            admin-state: enable
+          ethernet-1/2:
+            admin-state: enable
+          ethernet-1/3:
+            admin-state: enable
+    network-instance:
+      untagged-storage:
+        type: mac-vrf
+        admin-state: enable
+        description: untagged-storage
+        interface:
+          ethernet-1/1.4096: {}
+          ethernet-1/2.4096: {}
+          ethernet-1/3.4096: {}
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          mac-duplication:
+            admin-state: enable
+            monitoring-window: 3
+            num-moves: 5
+            hold-down-time: 9
+            action: stop-learning

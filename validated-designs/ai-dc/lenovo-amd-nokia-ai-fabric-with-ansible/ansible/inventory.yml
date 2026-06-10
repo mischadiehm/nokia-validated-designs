@@ -1,0 +1,28 @@
+---
+# Static inventory for the lenovo-amd-nokia-ai-fabric-with-ansible lab.
+# Mgmt IPs match lenovo-nokia-ai-fabric-with-ansible.clab.yaml (172.21.21.0/24).
+all:
+  children:
+    srl:
+      children:
+        backend_leaves:
+          hosts:
+            backend-leaf1: { ansible_host: 172.21.21.11 }
+            backend-leaf2: { ansible_host: 172.21.21.12 }
+        frontend_leaves:
+          hosts:
+            frontend-leaf1: { ansible_host: 172.21.21.13 }
+            frontend-leaf2: { ansible_host: 172.21.21.14 }
+        storage_leaves:
+          hosts:
+            storage-leaf1: { ansible_host: 172.21.21.15 }
+            storage-leaf2: { ansible_host: 172.21.21.16 }
+    linux_clients:
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      hosts:
+        gpu1: { ansible_host: gpu1 }
+        gpu2: { ansible_host: gpu2 }
+        frontend-server: { ansible_host: frontend-server }
+        storage: { ansible_host: storage }

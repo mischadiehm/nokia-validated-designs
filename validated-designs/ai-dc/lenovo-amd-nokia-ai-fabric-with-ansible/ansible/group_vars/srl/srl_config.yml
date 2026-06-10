@@ -1,0 +1,18 @@
+---
+# Builds the srl_config consumed by nokia.srlinux.to_config_operations by
+# deep-merging the layers below (later wins). One file per group contributes
+# a layer; a host is in exactly one fabric group.
+#   srl_common           - this file (empty by design: the three fabrics share nothing)
+#   srl_backend_common   - group_vars/backend_leaves/srl_config.yml (RoCEv2 QoS)
+#   srl_frontend_common  - group_vars/frontend_leaves/srl_config.yml
+#   srl_storage_common   - group_vars/storage_leaves/srl_config.yml
+#   srl_host             - host_vars/<host>.yml
+srl_config: >-
+  {{ srl_common
+     | combine(srl_backend_common | default({}, true), recursive=true)
+     | combine(srl_frontend_common | default({}, true), recursive=true)
+     | combine(srl_storage_common | default({}, true), recursive=true)
+     | combine(srl_host | default({}, true), recursive=true) }}
+
+srl_common:
+  update: {}

@@ -1,0 +1,7 @@
+---
+# Per-node remainder; the fabric layer lives in group_vars/storage_leaves/.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: storage-leaf1

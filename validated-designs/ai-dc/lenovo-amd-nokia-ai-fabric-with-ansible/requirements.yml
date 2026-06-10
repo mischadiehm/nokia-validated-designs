@@ -1,0 +1,16 @@
+---
+# Ansible collections required by the lenovo-amd-nokia-ai-fabric-with-ansible variant.
+# Install with: uv run ansible-galaxy collection install -r requirements.yml
+# The md fork of nokia.srlinux is the only nokia.srlinux source: it carries the
+# intent renderer, pruning/guard filters, the srl_config/srl_validate roles,
+# and the v25.10.1 list-key catalog (tag v1.2.0-md.1).
+collections:
+  - name: https://github.com/mischadiehm/srlinux-ansible-integration.git
+    type: git
+    version: "v1.2.0-md.1"
+  - name: ansible.netcommon
+    version: "5.3.0"
+  - name: ansible.utils
+    version: "3.1.0"
+  - name: community.docker          # drive the Linux endpoints (gpu+storage+frontend endpoints) via the clab runtime
+    version: "3.13.4"
