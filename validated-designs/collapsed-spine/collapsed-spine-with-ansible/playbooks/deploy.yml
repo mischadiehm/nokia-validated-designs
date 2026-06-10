@@ -4,7 +4,7 @@
   gather_facts: false
   any_errors_fatal: true
   roles:
-    - role: srl_config
+    - role: nokia.srlinux.srl_config
 
 - name: Deploy collapsed-spine Linux endpoints
   hosts: linux_clients

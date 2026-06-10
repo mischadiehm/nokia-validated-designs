@@ -3,7 +3,7 @@
   hosts: srl
   gather_facts: false
   roles:
-    - role: srl_validate
+    - role: nokia.srlinux.srl_validate
 
 - name: Validate collapsed-spine endpoint reachability
   hosts: linux_clients

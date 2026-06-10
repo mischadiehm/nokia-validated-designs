@@ -1,7 +1,7 @@
 # Per-ToR intent (the srl_host layer). Common parts live in group_vars/{srl,tors}/.
 # Keep readable; do not store rendered payloads here.
 srl_host:
-  set:
+  update:
     system:
       name:
         host-name: d2l-34-tor1

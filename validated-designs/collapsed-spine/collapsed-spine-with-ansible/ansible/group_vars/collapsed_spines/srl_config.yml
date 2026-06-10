@@ -4,7 +4,7 @@
 # IP, VLAN/IRB/EVI data plane, ESI preference, BGP, lags) live in
 # host_vars/<spine>.yml under srl_host.
 srl_spine_common:
-  set:
+  update:
     routing-policy:
       prefix-set:
         prefixset-dc1-collapsed-spine:

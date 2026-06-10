@@ -3,7 +3,7 @@
 # Per-ToR specifics (physical ports, access VLAN, LACP admin-key/system-id-mac,
 # mac-vrf) live in host_vars/<tor>.yml under srl_host.
 srl_tor_common:
-  set:
+  update:
     interface:
       lag1:
         admin-state: enable

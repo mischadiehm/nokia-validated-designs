@@ -14,7 +14,7 @@ srl_config: >-
      | combine(srl_host | default({}, true), recursive=true) }}
 
 srl_common:
-  set:
+  update:
     system:
       logging:
         buffer:

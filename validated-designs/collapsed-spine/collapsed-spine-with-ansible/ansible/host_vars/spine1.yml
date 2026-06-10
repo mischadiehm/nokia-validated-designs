@@ -1,7 +1,7 @@
 # Per-spine intent (the srl_host layer). Common parts live in
 # group_vars/{srl,collapsed_spines}/. Keep readable; do not store rendered payloads here.
 srl_host:
-  set:
+  update:
     system:
       name:
         host-name: d3l-29-spine1
