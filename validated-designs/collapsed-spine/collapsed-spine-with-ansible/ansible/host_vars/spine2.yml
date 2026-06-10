@@ -57,6 +57,16 @@ srl_host:
                             preference-value: 500
                             capabilities:
                               non-revertive: true
+                    spine1-spine2-tor4-cumulus-lag:
+                      admin-state: enable
+                      esi: 00:00:12:00:00:00:00:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag5
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
           bgp-vpn:
             bgp-instance:
               '1': {}
@@ -82,6 +92,13 @@ srl_host:
         admin-state: enable
         ethernet:
           aggregate-id: lag4
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/24:
+        description: spine1-spine2-tor4-cumulus-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag5
           lacp-port-priority: 32768
           reload-delay: 100
       ethernet-1/25:
@@ -414,6 +431,30 @@ srl_host:
             admin-key: 4
             system-id-mac: 00:00:12:00:00:00
             system-priority: 32768
+      lag5:
+        description: spine1-spine2-tor4-cumulus-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '10':
+            type: bridged
+            description: tagged-v10
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 10
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 5
+            system-id-mac: 00:12:00:00:00:00
+            system-priority: 32768
       system0:
         subinterface:
           '0':
@@ -521,6 +562,7 @@ srl_host:
           irb0.4: {}
           lag2.4096: {}
           lag4.4096: {}
+          lag5.10: {}
         vxlan-interface: vxlan0.504
         protocols:
           bgp-evpn:
