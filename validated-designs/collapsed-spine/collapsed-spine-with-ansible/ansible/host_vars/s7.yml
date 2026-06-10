@@ -20,8 +20,16 @@ endpoint_ipv4_ping_targets:
   source: 172.16.10.7
 - target: 172.16.70.6
   source: 172.16.10.7
+- target: 172.16.10.1
+  source: 172.16.10.7
+- target: 172.16.10.8
+  source: 172.16.10.7
 endpoint_ipv6_ping_targets:
 - target: 2001:db8:0:10::3
   source: 2001:db8:0:10::7
 - target: 2001:db8:0:70::6
+  source: 2001:db8:0:10::7
+- target: 2001:db8:0:10::1
+  source: 2001:db8:0:10::7
+- target: 2001:db8:0:10::8
   source: 2001:db8:0:10::7
