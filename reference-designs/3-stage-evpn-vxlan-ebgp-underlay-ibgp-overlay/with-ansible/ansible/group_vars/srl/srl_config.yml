@@ -1,0 +1,141 @@
+---
+# Builds the srl_config that the nokia.srlinux.to_config_operations filter
+# consumes, by deep-merging the layers below (later wins). One file per group
+# contributes a layer:
+#   srl_common        - this file: identical on every SR Linux node
+#   srl_spine_common  - group_vars/spines/srl_config.yml
+#   srl_leaf_common   - group_vars/leaves/srl_config.yml
+#   srl_host          - host_vars/<host>.yml: the per-node remainder
+# A host is in exactly one role group, so only one role layer is set; the
+# others default to an empty mapping.
+srl_config: >-
+  {{ srl_common
+     | combine(srl_spine_common | default({}, true), recursive=true)
+     | combine(srl_leaf_common | default({}, true), recursive=true)
+     | combine(srl_host | default({}, true), recursive=true) }}
+
+srl_common:
+  update:
+    interface:
+      system0:
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv4:
+              admin-state: enable
+    network-instance:
+      default:
+        type: default
+        admin-state: enable
+        ip-forwarding:
+          receive-ipv4-check: false
+        protocols:
+          bgp:
+            admin-state: enable
+            ebgp-default-policy:
+              import-reject-all: true
+              export-reject-all: true
+            afi-safi:
+              evpn:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 64
+                  ibgp:
+                    maximum-paths: 64
+                evpn:
+                  inter-as-vpn: true
+                  rapid-update: true
+              ipv4-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 64
+                  ibgp:
+                    maximum-paths: 64
+                ipv4-unicast:
+                  advertise-ipv6-next-hops: true
+                  receive-ipv6-next-hops: true
+                evpn:
+                  rapid-update: true
+              ipv6-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 64
+                  ibgp:
+                    maximum-paths: 64
+                evpn:
+                  rapid-update: true
+            preference:
+              ebgp: 170
+              ibgp: 170
+            route-advertisement:
+              rapid-withdrawal: true
+              wait-for-fib-install: false
+            group:
+              underlay:
+                admin-state: enable
+                export-policy: [underlay]
+                import-policy: [underlay]
+                failure-detection:
+                  enable-bfd: true
+                  fast-failover: true
+                afi-safi:
+                  evpn:
+                    admin-state: disable
+                  ipv4-unicast:
+                    admin-state: enable
+                    ipv4-unicast:
+                      advertise-ipv6-next-hops: true
+                      receive-ipv6-next-hops: true
+              overlay:
+                admin-state: enable
+                peer-as: 65500
+                local-as:
+                  as-number: 65500
+                export-policy: [overlay]
+                import-policy: [overlay]
+                failure-detection:
+                  enable-bfd: true
+                  fast-failover: true
+                multihop:
+                  admin-state: enable
+                afi-safi:
+                  evpn:
+                    admin-state: enable
+                  ipv4-unicast:
+                    admin-state: disable
+                  ipv6-unicast:
+                    admin-state: disable
+    routing-policy:
+      prefix-set:
+        match-system0:
+          prefix:
+            192.0.2.0/24:
+              mask-length-range: 24..32
+      policy:
+        underlay:
+          default-action:
+            policy-result: reject
+          statement:
+            allow-system0:
+              match:
+                prefix:
+                  prefix-set: match-system0
+              action:
+                policy-result: accept
+        overlay:
+          default-action:
+            policy-result: accept
+  delete:
+    system:
+      aaa:
+        authentication:
+          admin-user:
+            ssh-key: {}
+          linuxadmin-user:
+            ssh-key: {}

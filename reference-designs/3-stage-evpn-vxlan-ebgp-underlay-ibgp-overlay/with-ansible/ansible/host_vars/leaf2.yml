@@ -1,0 +1,110 @@
+---
+# leaf2: untagged access for s2 (active-backup bond member), lag2 member
+# (ESI-LAG for s8), node-isolation event-handler watching the overlay BGP
+# sessions with e1-6 as the isolation down-link.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: leaf2
+      lldp:
+        interface:
+          ethernet-1/3:
+            admin-state: enable
+          ethernet-1/6:
+            admin-state: enable
+      event-handler:
+        instance:
+          overlay-bgp:
+            admin-state: enable
+            upython-script: node-isolation.py
+            paths:
+              - "network-instance default protocols bgp neighbor * session-state"
+            options:
+              object:
+                down-links:
+                  values: [ethernet-1/6]
+                hold-down-time:
+                  value: 20000
+                required-bgp-sessions-established:
+                  value: 1
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    leaf2-leaf3-leaf4-leaf5-lag2:
+                      admin-state: enable
+                      esi: 00:00:00:22:33:44:55:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag2
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
+          bgp-vpn:
+            bgp-instance:
+              '1': {}
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.12/32
+      ethernet-1/3:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      ethernet-1/6:
+        description: leaf2-leaf3-leaf4-leaf5-lag2
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag2
+          lacp-port-priority: 32768
+          reload-delay: 100
+      lag2:
+        description: leaf2-leaf3-leaf4-leaf5-lag2
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:22:33:44:55
+            system-priority: 32768
+    network-instance:
+      default:
+        router-id: 192.0.2.12
+        protocols:
+          bgp:
+            group:
+              overlay:
+                transport:
+                  local-address: 192.0.2.12
+            autonomous-system: 65412
+            router-id: 192.0.2.12
+      macvrf-v10:
+        interface:
+          ethernet-1/3.4096: {}
+      macvrf-v50:
+        interface:
+          lag2.4096: {}

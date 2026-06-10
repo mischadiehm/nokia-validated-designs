@@ -1,0 +1,21 @@
+---
+# Per-spine intent (the srl_host layer). Common parts live in
+# group_vars/{srl,spines}/. Keep readable; do not store rendered payloads here.
+srl_host:
+  update:
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.101/32
+    network-instance:
+      default:
+        router-id: 192.0.2.101
+        protocols:
+          bgp:
+            group:
+              overlay:
+                transport:
+                  local-address: 192.0.2.101
+            router-id: 192.0.2.101

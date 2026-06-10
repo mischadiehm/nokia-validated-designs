@@ -1,0 +1,101 @@
+---
+# leaf6: lag3 member (single-active with leaf5, DF preference 500 = standby),
+# untagged access for s9 (macvrf-v60). No event-handler on this leaf.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: leaf6
+      lldp:
+        interface:
+          ethernet-1/5:
+            admin-state: enable
+          ethernet-1/6:
+            admin-state: enable
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    leaf5-leaf6-lag3:
+                      admin-state: enable
+                      esi: 00:00:00:00:00:55:66:00:00:00
+                      multi-homing-mode: single-active
+                      interface: lag3
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        interface-standby-signaling-on-non-df: true
+                        algorithm:
+                          type: preference
+                          preference-alg:
+                            preference-value: 500
+                            capabilities:
+                              non-revertive: false
+          bgp-vpn:
+            bgp-instance:
+              '1': {}
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.16/32
+      ethernet-1/5:
+        description: leaf5-leaf6-lag3
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag3
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/6:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      lag3:
+        description: leaf5-leaf6-lag3
+        admin-state: enable
+        vlan-tagging: true
+        ethernet:
+          standby-signaling: lacp
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 3
+            system-id-mac: 00:00:00:00:55:66
+            system-priority: 32768
+    network-instance:
+      default:
+        router-id: 192.0.2.16
+        protocols:
+          bgp:
+            group:
+              overlay:
+                transport:
+                  local-address: 192.0.2.16
+            autonomous-system: 65416
+            router-id: 192.0.2.16
+      macvrf-v30:
+        interface:
+          lag3.4096: {}
+      macvrf-v60:
+        interface:
+          ethernet-1/6.4096: {}

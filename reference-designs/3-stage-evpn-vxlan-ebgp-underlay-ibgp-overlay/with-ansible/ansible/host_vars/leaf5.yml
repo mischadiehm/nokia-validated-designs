@@ -1,0 +1,188 @@
+---
+# leaf5: member of all three ESI-LAGs - lag1 (all-active, with leaf4), lag2
+# (all-active, with leaf2/3/4), lag3 (single-active with leaf6, DF preference
+# 800 = preferred active, LACP standby signaling towards s6). Node-isolation
+# event-handler with e1-4/e1-5/e1-6 as isolation down-links.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: leaf5
+      lldp:
+        interface:
+          ethernet-1/4:
+            admin-state: enable
+          ethernet-1/5:
+            admin-state: enable
+          ethernet-1/6:
+            admin-state: enable
+      event-handler:
+        instance:
+          overlay-bgp:
+            admin-state: enable
+            upython-script: node-isolation.py
+            paths:
+              - "network-instance default protocols bgp neighbor * session-state"
+            options:
+              object:
+                down-links:
+                  values: [ethernet-1/4, ethernet-1/5, ethernet-1/6]
+                hold-down-time:
+                  value: 20000
+                required-bgp-sessions-established:
+                  value: 1
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    leaf4-leaf5-lag1:
+                      admin-state: enable
+                      esi: 00:00:00:00:00:44:55:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag1
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
+                    leaf2-leaf3-leaf4-leaf5-lag2:
+                      admin-state: enable
+                      esi: 00:00:00:22:33:44:55:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag2
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default
+                    leaf5-leaf6-lag3:
+                      admin-state: enable
+                      esi: 00:00:00:00:00:55:66:00:00:00
+                      multi-homing-mode: single-active
+                      interface: lag3
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        interface-standby-signaling-on-non-df: true
+                        algorithm:
+                          type: preference
+                          preference-alg:
+                            preference-value: 800
+                            capabilities:
+                              non-revertive: false
+          bgp-vpn:
+            bgp-instance:
+              '1': {}
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.15/32
+      ethernet-1/4:
+        description: leaf4-leaf5-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/5:
+        description: leaf5-leaf6-lag3
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag3
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/6:
+        description: leaf2-leaf3-leaf4-leaf5-lag2
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag2
+          lacp-port-priority: 32768
+          reload-delay: 100
+      lag1:
+        description: leaf4-leaf5-lag1
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 2
+            system-id-mac: 00:00:00:00:44:55
+            system-priority: 32768
+      lag2:
+        description: leaf2-leaf3-leaf4-leaf5-lag2
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:22:33:44:55
+            system-priority: 32768
+      lag3:
+        description: leaf5-leaf6-lag3
+        admin-state: enable
+        vlan-tagging: true
+        ethernet:
+          standby-signaling: lacp
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 3
+            system-id-mac: 00:00:00:00:55:66
+            system-priority: 32768
+    network-instance:
+      default:
+        router-id: 192.0.2.15
+        protocols:
+          bgp:
+            group:
+              overlay:
+                transport:
+                  local-address: 192.0.2.15
+            autonomous-system: 65415
+            router-id: 192.0.2.15
+      macvrf-v30:
+        interface:
+          lag1.4096: {}
+          lag3.4096: {}
+      macvrf-v50:
+        interface:
+          lag2.4096: {}

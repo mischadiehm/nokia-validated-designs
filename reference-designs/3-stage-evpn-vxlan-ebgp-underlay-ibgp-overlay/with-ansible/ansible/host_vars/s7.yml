@@ -1,0 +1,15 @@
+# s7: single link to leaf1 e1-5, vlan 40 untagged, vrf2 scope (v40/v50/v60).
+interfaces:
+  eth1:
+    ipv4:
+    - 172.16.40.7/24
+bonds: {}
+routes:
+- {family: ipv4, to: 172.16.50.0/24, via: 172.16.40.254, dev: eth1}
+- {family: ipv4, to: 172.16.60.0/24, via: 172.16.40.254, dev: eth1}
+endpoint_ipv4_ping_targets:
+- 172.16.40.254
+- target: 172.16.50.8
+  source: 172.16.40.7
+- target: 172.16.60.9
+  source: 172.16.40.7

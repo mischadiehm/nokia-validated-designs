@@ -1,0 +1,101 @@
+---
+# leaf1: tagged access for s1 (vlan 10), routed access for s5 (vrf1 + statics
+# towards the s5 loopbacks), untagged access for s7 (macvrf-v40). No LAGs, no
+# event-handler on this leaf.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: leaf1
+      lldp:
+        interface:
+          ethernet-1/3:
+            admin-state: enable
+          ethernet-1/4:
+            admin-state: enable
+          ethernet-1/5:
+            admin-state: enable
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.11/32
+      ethernet-1/3:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '10':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 10
+      ethernet-1/4:
+        admin-state: enable
+        subinterface:
+          '4097':
+            type: routed
+            description: leaf1-s5
+            admin-state: enable
+            ip-mtu: 1500
+            ipv4:
+              admin-state: enable
+              address:
+                172.16.100.0/31:
+                  primary: ''
+              arp:
+                timeout: 14400
+      ethernet-1/5:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+    network-instance:
+      default:
+        router-id: 192.0.2.11
+        protocols:
+          bgp:
+            group:
+              overlay:
+                transport:
+                  local-address: 192.0.2.11
+            autonomous-system: 65411
+            router-id: 192.0.2.11
+      macvrf-v10:
+        interface:
+          ethernet-1/3.10: {}
+      macvrf-v40:
+        interface:
+          ethernet-1/5.4096: {}
+      vrf1:
+        interface:
+          ethernet-1/4.4097: {}
+        static-routes:
+          route:
+            172.16.92.0/24:
+              admin-state: enable
+              next-hop-group: static-s5
+            172.16.93.0/24:
+              admin-state: enable
+              next-hop-group: static-s5
+            172.16.94.0/24:
+              admin-state: enable
+              next-hop-group: static-s5
+            172.16.95.0/24:
+              admin-state: enable
+              next-hop-group: static-s5
+        next-hop-groups:
+          group:
+            static-s5:
+              admin-state: enable
+              nexthop:
+                '0':
+                  ip-address: 172.16.100.1
+                  admin-state: enable
+                  resolve: false
