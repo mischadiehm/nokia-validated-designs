@@ -30,3 +30,5 @@ all:
         s4: { ansible_host: s4 }
         s5: { ansible_host: s5 }
         s6: { ansible_host: s6 }
+        s7: { ansible_host: s7 }
+        s8: { ansible_host: s8 }
