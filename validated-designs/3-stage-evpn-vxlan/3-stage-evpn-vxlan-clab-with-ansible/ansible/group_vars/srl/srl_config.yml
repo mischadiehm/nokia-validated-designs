@@ -1,0 +1,233 @@
+---
+# Builds the srl_config that the nokia.srlinux.to_config_operations filter
+# consumes, by deep-merging the layers below (later wins). One file per group
+# contributes a layer:
+#   srl_common        - this file: identical on every SR Linux node
+#   srl_spine_common  - group_vars/spines/srl_config.yml
+#   srl_leaf_common   - group_vars/leaves/srl_config.yml
+#   srl_host          - host_vars/<host>.yml: the per-node remainder
+# A host is in exactly one role group, so only one role layer is set; the
+# others default to an empty mapping.
+srl_config: >-
+  {{ srl_common
+     | combine(srl_spine_common | default({}, true), recursive=true)
+     | combine(srl_leaf_common | default({}, true), recursive=true)
+     | combine(srl_host | default({}, true), recursive=true) }}
+
+srl_common:
+  update:
+    interface:
+      system0:
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv4:
+              admin-state: enable
+    network-instance:
+      default:
+        type: default
+        admin-state: enable
+        ip-forwarding:
+          receive-ipv4-check: false
+        protocols:
+          bgp:
+            admin-state: enable
+            ebgp-default-policy:
+              import-reject-all: true
+              export-reject-all: true
+            afi-safi:
+              evpn:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  maximum-paths: 64
+                evpn:
+                  inter-as-vpn: true
+                  rapid-update: true
+              ipv4-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                ipv4-unicast:
+                  advertise-ipv6-next-hops: true
+                  receive-ipv6-next-hops: true
+                evpn:
+                  rapid-update: true
+              ipv6-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                evpn:
+                  rapid-update: true
+            preference:
+              ebgp: 170
+              ibgp: 170
+            route-advertisement:
+              rapid-withdrawal: true
+              wait-for-fib-install: false
+            group:
+              bgpgroup-ebgp-dc1:
+                admin-state: enable
+                export-policy: [ebgp-isl-export-policy-dc1]
+                import-policy: [ebgp-isl-import-policy-dc1]
+                failure-detection:
+                  enable-bfd: true
+                  fast-failover: true
+                afi-safi:
+                  evpn:
+                    admin-state: enable
+                  ipv4-unicast:
+                    admin-state: enable
+                    ipv4-unicast:
+                      advertise-ipv6-next-hops: true
+                      receive-ipv6-next-hops: true
+                  ipv6-unicast:
+                    admin-state: enable
+    routing-policy:
+      prefix-set:
+        prefixset-dc1:
+          prefix:
+            192.0.2.0/24:
+              mask-length-range: 32..32
+      policy:
+        ebgp-isl-export-policy-dc1:
+          default-action:
+            policy-result: reject
+          statement:
+            '10':
+              match:
+                prefix-set: prefixset-dc1
+                protocol: local
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '15':
+              match:
+                protocol: bgp
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '20':
+              match:
+                protocol: aggregate
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '25':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [1]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '30':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [2]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '35':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [3]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '40':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [4]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '45':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [5]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+        ebgp-isl-import-policy-dc1:
+          default-action:
+            policy-result: reject
+          statement:
+            '10':
+              match:
+                protocol: bgp
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '25':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [1]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '30':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [2]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '35':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [3]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '40':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [4]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+            '45':
+              match:
+                bgp:
+                  evpn:
+                    route-type: [5]
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100

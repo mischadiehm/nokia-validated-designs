@@ -1,0 +1,60 @@
+---
+# Data-plane flow matrix for tools/clab-network-tester.
+# Covers: intra-VLAN over ESI-LAG multihoming, cross-VLAN routing through the
+# anycast IRBs in vrf1 and vrf2, and EVPN type-5 reachability of the s5
+# loopbacks. s5-sourced flows live in playbooks/validate.yml instead (they
+# need the VRF-bound source on the endpoint).
+version: 1
+topology: ../3-stage-with-ansible.clab.yaml
+
+defaults:
+  test: all
+  families:
+    - ipv4
+  count: 1
+  timeout: 2
+  sweep_interval: 30
+  flow_interval: 1
+
+endpoints:
+  source:
+    type: ansible_host_vars
+    inventory: ../ansible/inventory.yml
+    host_vars_dir: ../ansible/host_vars
+    group: linux_clients
+
+flows:
+  # vrf1: intra-VLAN over multihoming
+  s1-to-s2-v10:
+    source: s1:172.16.10.1
+    target: s2:172.16.10.2
+  s4-to-s6-v30:
+    source: s4:172.16.30.4
+    target: s6:172.16.30.6
+  # vrf1: cross-VLAN via anycast IRB
+  s1-to-s3-v10-v20:
+    source: s1:172.16.10.1
+    target: s3:172.16.20.3
+  s2-to-s4-v10-v30:
+    source: s2:172.16.10.2
+    target: s4:172.16.30.4
+  s3-to-s6-v20-v30:
+    source: s3:172.16.20.3
+    target: s6:172.16.30.6
+  # vrf1: EVPN type-5 towards the s5 loopbacks
+  s1-to-s5-lo:
+    source: s1:172.16.10.1
+    target: s5:172.16.92.5
+  s3-to-s5-lo:
+    source: s3:172.16.20.3
+    target: s5:172.16.93.5
+  # vrf2
+  s7-to-s8-v40-v50:
+    source: s7:172.16.40.7
+    target: s8:172.16.50.8
+  s8-to-s9-v50-v60:
+    source: s8:172.16.50.8
+    target: s9:172.16.60.9
+  s9-to-s7-v60-v40:
+    source: s9:172.16.60.9
+    target: s7:172.16.40.7

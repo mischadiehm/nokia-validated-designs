@@ -1,0 +1,22 @@
+# s8: 4-way all-active LACP bond across leaf2..leaf5 (lag2), vlan 50 untagged.
+interfaces:
+  bond0:
+    ipv4:
+    - 172.16.50.8/24
+bonds:
+  bond0:
+    mode: 802.3ad
+    members:
+    - eth1
+    - eth2
+    - eth3
+    - eth4
+routes:
+- {family: ipv4, to: 172.16.40.0/24, via: 172.16.50.254, dev: bond0}
+- {family: ipv4, to: 172.16.60.0/24, via: 172.16.50.254, dev: bond0}
+endpoint_ipv4_ping_targets:
+- 172.16.50.254
+- target: 172.16.40.7
+  source: 172.16.50.8
+- target: 172.16.60.9
+  source: 172.16.50.8

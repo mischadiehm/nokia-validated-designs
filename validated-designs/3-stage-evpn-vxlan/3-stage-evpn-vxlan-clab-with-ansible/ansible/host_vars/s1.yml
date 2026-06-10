@@ -1,0 +1,21 @@
+# 3-stage Ansible intent. Keep readable; do not store rendered payloads here.
+# s1: single link to leaf1 e1-3, vlan 10 tagged, vrf1 scope (v10/v20/v30 + s5 loopbacks).
+interfaces:
+  eth1.10:
+    vlan: 10
+    ipv4:
+    - 172.16.10.1/24
+bonds: {}
+routes:
+- {family: ipv4, to: 172.16.20.0/24, via: 172.16.10.254, dev: eth1.10}
+- {family: ipv4, to: 172.16.30.0/24, via: 172.16.10.254, dev: eth1.10}
+- {family: ipv4, to: 172.16.92.0/22, via: 172.16.10.254, dev: eth1.10}
+endpoint_ipv4_ping_targets:
+- 172.16.10.254
+- 172.16.10.2
+- target: 172.16.20.3
+  source: 172.16.10.1
+- target: 172.16.30.4
+  source: 172.16.10.1
+- target: 172.16.92.5
+  source: 172.16.10.1

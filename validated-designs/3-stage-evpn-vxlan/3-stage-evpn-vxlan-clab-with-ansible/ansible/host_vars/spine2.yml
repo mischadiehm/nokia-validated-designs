@@ -1,0 +1,20 @@
+---
+# Per-spine intent (the srl_host layer). Common parts live in
+# group_vars/{srl,spines}/. Keep readable; do not store rendered payloads here.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: spine2
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.102/32
+    network-instance:
+      default:
+        router-id: 192.0.2.102
+        protocols:
+          bgp:
+            router-id: 192.0.2.102
