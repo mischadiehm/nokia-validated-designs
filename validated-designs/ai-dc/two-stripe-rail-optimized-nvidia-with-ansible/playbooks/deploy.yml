@@ -1,0 +1,13 @@
+---
+- name: Deploy two-stripe rail-optimized AI fabric SR Linux nodes
+  hosts: srl
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - role: nokia.srlinux.srl_config
+
+- name: Deploy two-stripe rail-optimized AI fabric endpoints
+  hosts: linux_clients
+  gather_facts: false
+  roles:
+    - role: linux_endpoint

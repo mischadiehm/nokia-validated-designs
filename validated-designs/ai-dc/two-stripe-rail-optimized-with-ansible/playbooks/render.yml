@@ -1,0 +1,15 @@
+---
+# Test helper: render every SR Linux node's native operations to a scratch
+# directory for the render-invariant pytest. Render-only; no device contact.
+- name: Render SR Linux operations for invariant tests
+  hosts: srl
+  gather_facts: false
+  tasks:
+    - name: Render operations with the collection filter
+      ansible.builtin.set_fact:
+        render_ops: "{{ hostvars[inventory_hostname] | nokia.srlinux.to_config_operations }}"
+    - name: Write operations to the scratch directory
+      ansible.builtin.copy:
+        content: "{{ render_ops | to_nice_json }}\n"
+        dest: "{{ render_dir | default('/tmp/two-stripe-render') }}/{{ inventory_hostname }}.json"
+      delegate_to: localhost

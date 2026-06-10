@@ -1,0 +1,802 @@
+---
+# Frontend leaf layer, derived from frontend-fabric.yaml (eBGP underlay over
+# IPv6-unnumbered ISLs + eBGP EVPN overlay, BFD 1s x3) and frontend-vnets.yaml
+# (EVPNVXLAN bridge domain mac-vrf-storage, EVI/VNI 100, mac aging 300,
+# proxy-ARP dynamic learning age/refresh 2000, ip-duplication 10/10/4,
+# table-size 250). The four storage servers and eight weka nodes bond across
+# both leaves => twelve all-active ESI-LAGs (ESIs/admin-keys pinned here; EDA
+# would draw them from lag-admin-key-pool).
+srl_frontend_leaf_common:
+  update:
+    bfd:
+      subinterface:
+        ethernet-1/1.0:
+          admin-state: enable
+          desired-minimum-transmit-interval: 1000000
+          required-minimum-receive: 1000000
+          detection-multiplier: 3
+          minimum-echo-receive-interval: 1000000
+        ethernet-1/2.0:
+          admin-state: enable
+          desired-minimum-transmit-interval: 1000000
+          required-minimum-receive: 1000000
+          detection-multiplier: 3
+          minimum-echo-receive-interval: 1000000
+    interface:
+      ethernet-1/1:
+        admin-state: enable
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv6:
+              admin-state: enable
+              router-advertisement:
+                router-role:
+                  admin-state: enable
+                  max-advertisement-interval: 10
+                  min-advertisement-interval: 4
+      ethernet-1/2:
+        admin-state: enable
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv6:
+              admin-state: enable
+              router-advertisement:
+                router-role:
+                  admin-state: enable
+                  max-advertisement-interval: 10
+                  min-advertisement-interval: 4
+      system0:
+        subinterface:
+          '0':
+            admin-state: enable
+            ipv4:
+              admin-state: enable
+      ethernet-1/3:
+        description: frontend-s1-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/4:
+        description: frontend-s2-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag2
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/5:
+        description: frontend-s3-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag3
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/6:
+        description: frontend-s4-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag4
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/7:
+        description: frontend-weka1-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag5
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/8:
+        description: frontend-weka2-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag6
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/9:
+        description: frontend-weka3-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag7
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/10:
+        description: frontend-weka4-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag8
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/11:
+        description: frontend-weka5-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag9
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/12:
+        description: frontend-weka6-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag10
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/13:
+        description: frontend-weka7-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag11
+          lacp-port-priority: 32768
+          reload-delay: 100
+      ethernet-1/14:
+        description: frontend-weka8-lag
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag12
+          lacp-port-priority: 32768
+          reload-delay: 100
+      lag1:
+        description: frontend-s1-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 21
+            system-id-mac: 00:0F:E0:00:00:01
+            system-priority: 32768
+      lag2:
+        description: frontend-s2-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 22
+            system-id-mac: 00:0F:E0:00:00:02
+            system-priority: 32768
+      lag3:
+        description: frontend-s3-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 23
+            system-id-mac: 00:0F:E0:00:00:03
+            system-priority: 32768
+      lag4:
+        description: frontend-s4-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 24
+            system-id-mac: 00:0F:E0:00:00:04
+            system-priority: 32768
+      lag5:
+        description: frontend-weka1-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 25
+            system-id-mac: 00:0F:E0:00:00:05
+            system-priority: 32768
+      lag6:
+        description: frontend-weka2-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 26
+            system-id-mac: 00:0F:E0:00:00:06
+            system-priority: 32768
+      lag7:
+        description: frontend-weka3-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 27
+            system-id-mac: 00:0F:E0:00:00:07
+            system-priority: 32768
+      lag8:
+        description: frontend-weka4-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 28
+            system-id-mac: 00:0F:E0:00:00:08
+            system-priority: 32768
+      lag9:
+        description: frontend-weka5-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 29
+            system-id-mac: 00:0F:E0:00:00:09
+            system-priority: 32768
+      lag10:
+        description: frontend-weka6-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 30
+            system-id-mac: 00:0F:E0:00:00:10
+            system-priority: 32768
+      lag11:
+        description: frontend-weka7-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 31
+            system-id-mac: 00:0F:E0:00:00:11
+            system-priority: 32768
+      lag12:
+        description: frontend-weka8-lag
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 32
+            system-id-mac: 00:0F:E0:00:00:12
+            system-priority: 32768
+    system:
+      lldp:
+        interface:
+          ethernet-1/1:
+            admin-state: enable
+          ethernet-1/2:
+            admin-state: enable
+          ethernet-1/3:
+            admin-state: enable
+          ethernet-1/4:
+            admin-state: enable
+          ethernet-1/5:
+            admin-state: enable
+          ethernet-1/6:
+            admin-state: enable
+          ethernet-1/7:
+            admin-state: enable
+          ethernet-1/8:
+            admin-state: enable
+          ethernet-1/9:
+            admin-state: enable
+          ethernet-1/10:
+            admin-state: enable
+          ethernet-1/11:
+            admin-state: enable
+          ethernet-1/12:
+            admin-state: enable
+          ethernet-1/13:
+            admin-state: enable
+          ethernet-1/14:
+            admin-state: enable
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    frontend-s1-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:01
+                      multi-homing-mode: all-active
+                      interface: lag1
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-s2-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:02
+                      multi-homing-mode: all-active
+                      interface: lag2
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-s3-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:03
+                      multi-homing-mode: all-active
+                      interface: lag3
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-s4-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:04
+                      multi-homing-mode: all-active
+                      interface: lag4
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka1-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:05
+                      multi-homing-mode: all-active
+                      interface: lag5
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka2-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:06
+                      multi-homing-mode: all-active
+                      interface: lag6
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka3-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:07
+                      multi-homing-mode: all-active
+                      interface: lag7
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka4-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:08
+                      multi-homing-mode: all-active
+                      interface: lag8
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka5-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:09
+                      multi-homing-mode: all-active
+                      interface: lag9
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka6-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:10
+                      multi-homing-mode: all-active
+                      interface: lag10
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka7-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:11
+                      multi-homing-mode: all-active
+                      interface: lag11
+                      df-election:
+                        algorithm:
+                          type: default
+                    frontend-weka8-lag:
+                      admin-state: enable
+                      esi: 00:00:0F:E0:00:00:00:00:00:12
+                      multi-homing-mode: all-active
+                      interface: lag12
+                      df-election:
+                        algorithm:
+                          type: default
+          bgp-vpn:
+            bgp-instance:
+              '1': {}
+    network-instance:
+      default:
+        type: default
+        admin-state: enable
+        description: 'fabric: dc1-frontend role: leaf'
+        ip-forwarding:
+          receive-ipv4-check: false
+        interface:
+          ethernet-1/1.0: {}
+          ethernet-1/2.0: {}
+          system0.0: {}
+        protocols:
+          bgp:
+            admin-state: enable
+            ebgp-default-policy:
+              import-reject-all: true
+              export-reject-all: true
+            afi-safi:
+              ipv6-unicast:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  ebgp:
+                    maximum-paths: 2
+                evpn:
+                  rapid-update: true
+              evpn:
+                admin-state: enable
+                multipath:
+                  allow-multiple-as: true
+                  maximum-paths: 64
+                evpn:
+                  inter-as-vpn: true
+                  rapid-update: true
+            preference:
+              ebgp: 170
+              ibgp: 170
+            route-advertisement:
+              rapid-withdrawal: true
+              wait-for-fib-install: false
+            group:
+              bgpgroup-ebgp-dc1:
+                admin-state: enable
+                export-policy:
+                - ebgp-isl-export-policy-dc1
+                import-policy:
+                - ebgp-isl-import-policy-dc1
+                failure-detection:
+                  enable-bfd: true
+                  fast-failover: true
+                afi-safi:
+                  evpn:
+                    admin-state: enable
+                  ipv6-unicast:
+                    admin-state: enable
+            dynamic-neighbors:
+              interface:
+                ethernet-1/1.0:
+                  peer-group: bgpgroup-ebgp-dc1
+                  allowed-peer-as:
+                  - 120
+                ethernet-1/2.0:
+                  peer-group: bgpgroup-ebgp-dc1
+                  allowed-peer-as:
+                  - 120
+      mac-vrf-storage:
+        type: mac-vrf
+        admin-state: enable
+        description: storage vnet (EVI 100, VNI 100)
+        interface:
+          lag1.4096: {}
+          lag2.4096: {}
+          lag3.4096: {}
+          lag4.4096: {}
+          lag5.4096: {}
+          lag6.4096: {}
+          lag7.4096: {}
+          lag8.4096: {}
+          lag9.4096: {}
+          lag10.4096: {}
+          lag11.4096: {}
+          lag12.4096: {}
+        vxlan-interface:
+          vxlan0.100: {}
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.100
+                evi: 100
+                ecmp: 8
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:1:100
+                  import-rt: target:1:100
+        bridge-table:
+          mac-learning:
+            admin-state: enable
+            aging:
+              admin-state: enable
+              age-time: 300
+          proxy-arp:
+            admin-state: enable
+            dynamic-learning:
+              admin-state: enable
+              age-time: 2000
+              send-refresh: 2000
+            ip-duplication:
+              admin-state: enable
+              hold-down-time: 10
+              monitoring-window: 10
+              num-moves: 4
+            table-size: 250
+    tunnel-interface:
+      vxlan0:
+        vxlan-interface:
+          '100':
+            type: bridged
+            ingress:
+              vni: 100
+            egress:
+              source-ip: use-system-ipv4-address
+    routing-policy:
+      prefix-set:
+        prefixset-dc1:
+          prefix:
+            192.0.2.0/24:
+              mask-length-range: 32..32
+      policy:
+        ebgp-isl-export-policy-dc1:
+          default-action:
+            policy-result: reject
+          statement:
+            '10':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                prefix-set: prefixset-dc1
+                protocol: local
+            '15':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                protocol: bgp
+            '20':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 1
+            '25':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 2
+            '30':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 3
+            '35':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 4
+            '40':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 5
+        ebgp-isl-import-policy-dc1:
+          default-action:
+            policy-result: reject
+          statement:
+            '10':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                protocol: bgp
+            '15':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 1
+            '20':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 2
+            '25':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 3
+            '30':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 4
+            '35':
+              action:
+                policy-result: accept
+                bgp:
+                  local-preference:
+                    set: 100
+              match:
+                bgp:
+                  evpn:
+                    route-type:
+                    - 5

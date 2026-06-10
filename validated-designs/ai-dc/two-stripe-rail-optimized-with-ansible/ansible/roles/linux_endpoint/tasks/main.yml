@@ -1,0 +1,130 @@
+---
+- name: Create endpoint VRF devices
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link add {{ item.key }} type vrf table {{ item.value.table }} 2>/dev/null || true;
+      ip link set dev {{ item.key }} up'
+  loop: "{{ vrfs | default({}) | dict2items }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Create endpoint bonds
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link add {{ item.key }} type bond mode {{ item.value.mode }}
+      {{ ("primary " ~ item.value.primary) if item.value.primary is defined else "" }} 2>/dev/null || true;
+      {{ ("ip link set " ~ item.key ~ " type bond miimon " ~ item.value.miimon ~ ";") if item.value.miimon is defined else "" }}
+      ip link set {{ item.key }} down'
+  loop: "{{ bonds | default({}) | dict2items }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Attach endpoint bond members
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link set {{ item.1 }} down;
+      ip link set {{ item.1 }} master {{ item.0.key }} 2>/dev/null || true;
+      ip link set {{ item.1 }} up'
+  loop: "{{ bonds | default({}) | dict2items | subelements('value.members', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Create endpoint dummy interfaces
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link add {{ item.key }} type dummy 2>/dev/null || true;
+      ip link set {{ item.key }} up'
+  loop: "{{ dummies | default({}) | dict2items }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Create endpoint bridges
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link add name {{ item.key }} type bridge 2>/dev/null || true;
+      ip link set dev {{ item.key }} up'
+  loop: "{{ bridges | default({}) | dict2items }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Attach endpoint bridge members
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link set {{ item.1 }} master {{ item.0.key }} 2>/dev/null || true;
+      ip link set {{ item.1 }} up'
+  loop: "{{ bridges | default({}) | dict2items | subelements('value.members', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Add endpoint bridge IPv4 addresses
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip addr add {{ item.1 }} dev {{ item.0.key }} 2>/dev/null || true'"
+  loop: "{{ bridges | default({}) | dict2items | subelements('value.ipv4', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Create endpoint VLAN interfaces
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip link set {{ item.key.split(".")[0] }} up;
+      ip link add link {{ item.key.split(".")[0] }} name {{ item.key }} type vlan id {{ item.value.vlan }} 2>/dev/null || true;
+      ip link set {{ item.key }} up'
+  loop: "{{ interfaces | default({}) | dict2items }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - item.value.vlan is defined
+
+- name: Enable endpoint base interfaces
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "ip link set {{ item.key }} up"
+  loop: "{{ interfaces | default({}) | dict2items }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - item.value.vlan is not defined
+
+- name: Add endpoint IPv4 addresses
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip addr add {{ item.1 }} dev {{ item.0.key }} 2>/dev/null || true'"
+  loop: "{{ interfaces | default({}) | dict2items | subelements('value.ipv4', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Add endpoint dummy IPv4 addresses
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip addr add {{ item.1 }} dev {{ item.0.key }} 2>/dev/null || true'"
+  loop: "{{ dummies | default({}) | dict2items | subelements('value.ipv4', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Enslave endpoint interfaces to VRF devices
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: "sh -lc 'ip link set dev {{ item.1 }} master {{ item.0.key }} 2>/dev/null || true'"
+  loop: "{{ vrfs | default({}) | dict2items | subelements('value.members', skip_missing=True) }}"
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Add endpoint routes
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip {{ "-6 " if item.family == "ipv6" else "" }}route add {{ item.to | default("default") }}
+      via {{ item.via }}
+      {{ ("dev " ~ item.dev) if item.dev is defined else "" }}
+      {{ ("table " ~ item.table) if item.table is defined else "" }} 2>/dev/null || true'
+  loop: "{{ routes | default([]) }}"
+  changed_when: false
+  when: not ansible_check_mode

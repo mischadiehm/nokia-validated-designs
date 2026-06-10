@@ -1,0 +1,90 @@
+---
+# Static inventory for two-stripe-rail-optimized-with-ansible.
+# Mgmt IPs match the clab topology (172.21.21.0/24): stripe1 leaves .11-.18,
+# stripe2 leaves .21-.28, backend spines .101/.102, frontend .31-.34,
+# storage servers .51-.54, weka .61-.68 (containers addressed by name).
+all:
+  children:
+    srl:
+      children:
+        backend_spines:
+          hosts:
+            spine1:
+              ansible_host: 172.21.21.101
+            spine2:
+              ansible_host: 172.21.21.102
+        backend_leaves:
+          hosts:
+            stripe1-leaf1:
+              ansible_host: 172.21.21.11
+            stripe1-leaf2:
+              ansible_host: 172.21.21.12
+            stripe1-leaf3:
+              ansible_host: 172.21.21.13
+            stripe1-leaf4:
+              ansible_host: 172.21.21.14
+            stripe1-leaf5:
+              ansible_host: 172.21.21.15
+            stripe1-leaf6:
+              ansible_host: 172.21.21.16
+            stripe1-leaf7:
+              ansible_host: 172.21.21.17
+            stripe1-leaf8:
+              ansible_host: 172.21.21.18
+            stripe2-leaf1:
+              ansible_host: 172.21.21.21
+            stripe2-leaf2:
+              ansible_host: 172.21.21.22
+            stripe2-leaf3:
+              ansible_host: 172.21.21.23
+            stripe2-leaf4:
+              ansible_host: 172.21.21.24
+            stripe2-leaf5:
+              ansible_host: 172.21.21.25
+            stripe2-leaf6:
+              ansible_host: 172.21.21.26
+            stripe2-leaf7:
+              ansible_host: 172.21.21.27
+            stripe2-leaf8:
+              ansible_host: 172.21.21.28
+        frontend_spines:
+          hosts:
+            frontend-spine1:
+              ansible_host: 172.21.21.31
+            frontend-spine2:
+              ansible_host: 172.21.21.32
+        frontend_leaves:
+          hosts:
+            frontend-leaf1:
+              ansible_host: 172.21.21.33
+            frontend-leaf2:
+              ansible_host: 172.21.21.34
+    linux_clients:
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: '{{ ansible_playbook_python }}'
+      hosts:
+        s1:
+          ansible_host: s1
+        s2:
+          ansible_host: s2
+        s3:
+          ansible_host: s3
+        s4:
+          ansible_host: s4
+        weka1:
+          ansible_host: weka1
+        weka2:
+          ansible_host: weka2
+        weka3:
+          ansible_host: weka3
+        weka4:
+          ansible_host: weka4
+        weka5:
+          ansible_host: weka5
+        weka6:
+          ansible_host: weka6
+        weka7:
+          ansible_host: weka7
+        weka8:
+          ansible_host: weka8

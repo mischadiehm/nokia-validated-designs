@@ -1,0 +1,17 @@
+---
+# Builds srl_config for nokia.srlinux.to_config_operations by deep-merging
+# the group layers (later wins). ASN/system-IP mapping is pinned (EDA pool
+# allocation is not reproducible): backend leaf ASN = 100 + leafindex
+# (stripe1 leaf1..8 -> 101..108, stripe2 leaf1..8 -> 109..116), backend
+# spines share ASN 100; system0 = 192.0.2.<leafindex> / .101-.102 (spines).
+# Frontend: leaves 192.0.2.33/.34 ASN 121/122, spines .31/.32 shared ASN 120.
+srl_config: >-
+  {{ srl_common
+     | combine(srl_backend_leaf_common | default({}, true), recursive=true)
+     | combine(srl_backend_spine_common | default({}, true), recursive=true)
+     | combine(srl_frontend_leaf_common | default({}, true), recursive=true)
+     | combine(srl_frontend_spine_common | default({}, true), recursive=true)
+     | combine(srl_host | default({}, true), recursive=true) }}
+
+srl_common:
+  update: {}

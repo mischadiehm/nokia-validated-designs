@@ -1,0 +1,17 @@
+---
+# Weka node: 802.3ad bond eth1/eth2 across both frontend leaves (storage
+# vnet, EVI/VNI 100). Mirrors base-configs/weka<n>.sh.
+interfaces:
+  bond0:
+    ipv4:
+    - 172.16.10.13/24
+bonds:
+  bond0:
+    mode: 802.3ad
+    members:
+    - eth1
+    - eth2
+routes: []
+endpoint_ipv4_ping_targets:
+- 172.16.10.14
+- 172.16.10.1

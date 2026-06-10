@@ -1,0 +1,19 @@
+---
+# Frontend spine remainder (shared ASN 120 in the group layer).
+srl_host:
+  update:
+    system:
+      name:
+        host-name: frontend-spine2
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.32/32
+    network-instance:
+      default:
+        router-id: 192.0.2.32
+        protocols:
+          bgp:
+            router-id: 192.0.2.32

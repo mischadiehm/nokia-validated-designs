@@ -1,0 +1,86 @@
+---
+# Storage server: 8 backend rail NICs (one per stripe leaf, server side
+# fd00:<stripeID>:<leaf>:1:0:<port>:0:2/96, gateway :0:1 - the same template
+# the upstream endpoint playbook uses) + 802.3ad bond eth9/eth10 across both
+# frontend leaves into the storage vnet. Routes: per-NIC same-leaf sibling
+# rail /96, plus cross-stripe fd00:<other>::/32 via the leaf1 rail (exercises
+# the stripe-connector spines, where DLB and ipv6 multipath apply).
+interfaces:
+  eth1:
+    ipv6:
+    - fd00:200:1:1:0:4:0:2/96
+  eth2:
+    ipv6:
+    - fd00:200:2:1:0:4:0:2/96
+  eth3:
+    ipv6:
+    - fd00:200:3:1:0:4:0:2/96
+  eth4:
+    ipv6:
+    - fd00:200:4:1:0:4:0:2/96
+  eth5:
+    ipv6:
+    - fd00:200:5:1:0:4:0:2/96
+  eth6:
+    ipv6:
+    - fd00:200:6:1:0:4:0:2/96
+  eth7:
+    ipv6:
+    - fd00:200:7:1:0:4:0:2/96
+  eth8:
+    ipv6:
+    - fd00:200:8:1:0:4:0:2/96
+  bond0:
+    ipv4:
+    - 172.16.10.4/24
+bonds:
+  bond0:
+    mode: 802.3ad
+    members:
+    - eth9
+    - eth10
+routes:
+- family: ipv6
+  to: fd00:200:1:1:0:3::/96
+  via: fd00:200:1:1:0:4:0:1
+  dev: eth1
+- family: ipv6
+  to: fd00:100::/32
+  via: fd00:200:1:1:0:4:0:1
+  dev: eth1
+- family: ipv6
+  to: fd00:200:2:1:0:3::/96
+  via: fd00:200:2:1:0:4:0:1
+  dev: eth2
+- family: ipv6
+  to: fd00:200:3:1:0:3::/96
+  via: fd00:200:3:1:0:4:0:1
+  dev: eth3
+- family: ipv6
+  to: fd00:200:4:1:0:3::/96
+  via: fd00:200:4:1:0:4:0:1
+  dev: eth4
+- family: ipv6
+  to: fd00:200:5:1:0:3::/96
+  via: fd00:200:5:1:0:4:0:1
+  dev: eth5
+- family: ipv6
+  to: fd00:200:6:1:0:3::/96
+  via: fd00:200:6:1:0:4:0:1
+  dev: eth6
+- family: ipv6
+  to: fd00:200:7:1:0:3::/96
+  via: fd00:200:7:1:0:4:0:1
+  dev: eth7
+- family: ipv6
+  to: fd00:200:8:1:0:3::/96
+  via: fd00:200:8:1:0:4:0:1
+  dev: eth8
+endpoint_ipv6_rail_ping_targets:
+- target: fd00:200:1:1:0:3:0:2
+  source: fd00:200:1:1:0:4:0:2
+- target: fd00:100:1:1:0:3:0:2
+  source: fd00:200:1:1:0:4:0:2
+endpoint_ipv4_ping_targets:
+- 172.16.10.3
+- 172.16.10.11

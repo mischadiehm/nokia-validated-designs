@@ -1,0 +1,51 @@
+---
+- name: Validate two-stripe rail-optimized AI fabric SR Linux state
+  hosts: srl
+  gather_facts: false
+  roles:
+    - role: nokia.srlinux.srl_validate
+
+- name: Validate two-stripe rail-optimized AI fabric endpoint reachability
+  hosts: linux_clients
+  gather_facts: false
+  tasks:
+    - name: Run endpoint IPv4 ping checks
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: >-
+          ping -c 3
+          {{ ('-I ' ~ item.source) if item is mapping and item.source is defined else '' }}
+          {{ item.target if item is mapping else item }}
+      loop: "{{ endpoint_ipv4_ping_targets | default([]) }}"
+      register: endpoint_ipv4_ping
+      until: endpoint_ipv4_ping.rc == 0
+      retries: 5
+      delay: 3
+      changed_when: false
+
+    - name: Run same-rail IPv6 ping checks
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: "ping6 -c 3 -I {{ item.source }} {{ item.target }}"
+      loop: "{{ endpoint_ipv6_rail_ping_targets | default([]) }}"
+      register: endpoint_rail_ping
+      until: endpoint_rail_ping.rc == 0
+      retries: 5
+      delay: 3
+      changed_when: false
+
+    - name: Assert cross-rail isolation (ping must fail)
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: "ping6 -c 2 -W 2 -I {{ item.source }} {{ item.target }}"
+      loop: "{{ endpoint_isolation_must_fail | default([]) }}"
+      register: endpoint_isolation_ping
+      failed_when: endpoint_isolation_ping.rc == 0
+      changed_when: false
+
+    - name: Validate endpoint bond state
+      community.docker.docker_container_exec:
+        container: "{{ ansible_host }}"
+        command: "cat /proc/net/bonding/bond0"
+      changed_when: false
+      when: bonds | default({}) | length > 0

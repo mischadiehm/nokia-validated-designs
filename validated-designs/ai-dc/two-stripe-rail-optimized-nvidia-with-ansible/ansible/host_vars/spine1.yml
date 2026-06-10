@@ -1,0 +1,19 @@
+---
+# Backend spine remainder (shared ASN 100 in the group layer).
+srl_host:
+  update:
+    system:
+      name:
+        host-name: spine1
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.101/32
+    network-instance:
+      default:
+        router-id: 192.0.2.101
+        protocols:
+          bgp:
+            router-id: 192.0.2.101

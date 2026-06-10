@@ -1,0 +1,20 @@
+---
+# Frontend leaf remainder; the vnet + ESI-LAG layer is the group file.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: frontend-leaf1
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.33/32
+    network-instance:
+      default:
+        router-id: 192.0.2.33
+        protocols:
+          bgp:
+            autonomous-system: 121
+            router-id: 192.0.2.33

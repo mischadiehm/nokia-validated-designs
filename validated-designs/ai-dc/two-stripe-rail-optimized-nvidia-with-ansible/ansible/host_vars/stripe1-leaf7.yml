@@ -1,0 +1,46 @@
+---
+# Per-leaf remainder. Rail gateways follow the upstream endpoint playbook
+# template (server side fd00:<stripeID>:<leaf>:1:0:<port>:0:2/96): the leaf
+# gateway is :0:1 of each per-port /96. e1-3 carries the stripe's first
+# storage server rail, e1-4 the second.
+srl_host:
+  update:
+    system:
+      name:
+        host-name: stripe1-leaf7
+    interface:
+      ethernet-1/3:
+        admin-state: enable
+        subinterface:
+          '100':
+            type: routed
+            admin-state: enable
+            ipv6:
+              admin-state: enable
+              address:
+                fd00:100:7:1:0:3:0:1/96: {}
+      ethernet-1/4:
+        admin-state: enable
+        subinterface:
+          '100':
+            type: routed
+            admin-state: enable
+            ipv6:
+              admin-state: enable
+              address:
+                fd00:100:7:1:0:4:0:1/96: {}
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.7/32
+    network-instance:
+      default:
+        router-id: 192.0.2.7
+        interface:
+          ethernet-1/3.100: {}
+          ethernet-1/4.100: {}
+        protocols:
+          bgp:
+            autonomous-system: 107
+            router-id: 192.0.2.7
