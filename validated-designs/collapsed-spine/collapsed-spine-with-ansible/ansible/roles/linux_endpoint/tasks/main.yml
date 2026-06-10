@@ -59,6 +59,41 @@
   changed_when: false
   when: not ansible_check_mode
 
+- name: Add endpoint IPv4 connected routes to policy tables
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip -o -4 addr show dev {{ item.dev }} scope global |
+      awk "{print \$4}" |
+      while read cidr; do
+      addr=${cidr%/*};
+      network=$(python3 -c "import ipaddress, sys; print(ipaddress.ip_interface(sys.argv[1]).network)" "${cidr}");
+      ip route add ${network} dev {{ item.dev }} src ${addr}
+      table {{ item.table }} 2>/dev/null || true;
+      done'
+  loop: "{{ routes | default([]) }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - item.family == "ipv4"
+
+- name: Add endpoint IPv6 connected routes to policy tables
+  community.docker.docker_container_exec:
+    container: "{{ ansible_host }}"
+    command: >-
+      sh -lc 'ip -o -6 addr show dev {{ item.dev }} scope global |
+      awk "{print \$4}" |
+      while read cidr; do
+      network=$(python3 -c "import ipaddress, sys; print(ipaddress.ip_interface(sys.argv[1]).network)" "${cidr}");
+      ip -6 route add ${network} dev {{ item.dev }}
+      table {{ item.table }} 2>/dev/null || true;
+      done'
+  loop: "{{ routes | default([]) }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - item.family == "ipv6"
+
 - name: Add endpoint routes
   community.docker.docker_container_exec:
     container: "{{ ansible_host }}"
