@@ -18,6 +18,9 @@ all:
             tor1: { ansible_host: 172.21.21.11 }
             tor2: { ansible_host: 172.21.21.12 }
             tor3: { ansible_host: 172.21.21.13 }
+    cumulus:
+      hosts:
+        tor5: { ansible_host: 172.21.21.15 }
     linux_clients:
       # Driven through the Containerlab container runtime (docker exec).
       vars:

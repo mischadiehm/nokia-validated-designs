@@ -1,0 +1,6 @@
+---
+ansible_connection: ssh
+ansible_user: cumulus
+ansible_password: "Clab123!"          # lab default; use vault for anything real
+ansible_become: true
+ansible_become_method: sudo
