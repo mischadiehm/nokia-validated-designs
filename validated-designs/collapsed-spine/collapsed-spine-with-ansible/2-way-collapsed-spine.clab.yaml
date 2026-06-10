@@ -9,7 +9,7 @@ topology:
   kinds:
     nokia_srlinux:
       image: ghcr.io/nokia/srlinux:25.3.2
-      type: ixrd3l
+      type: ixr-d3l
     linux:
       image: ghcr.io/srl-labs/network-multitool
   nodes:
@@ -20,11 +20,11 @@ topology:
     tor1:
       mgmt-ipv4: 172.21.21.11
       kind: nokia_srlinux
-      type: ixrd2l
+      type: ixr-d2l
     tor2:
       mgmt-ipv4: 172.21.21.12
       kind: nokia_srlinux
-      type: ixrd2l
+      type: ixr-d2l
     tor3:
       mgmt-ipv4: 172.21.21.13
     tor5:
