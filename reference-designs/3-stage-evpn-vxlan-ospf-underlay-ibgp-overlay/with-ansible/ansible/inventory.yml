@@ -1,0 +1,37 @@
+---
+# Static inventory for the 3-stage-evpn-vxlan-clab-with-ansible lab.
+# Mgmt IPs match 3-stage-with-ansible.clab.yaml (mgmt subnet 172.21.21.0/24).
+# This static file is the source of truth for stable group_vars.
+all:
+  children:
+    srl:
+      # Connection/auth: group_vars/srl/connection.yml
+      # Shared intent: group_vars/srl/srl_config.yml (+ spines/ and leaves/)
+      children:
+        spines:
+          hosts:
+            spine1: { ansible_host: 172.21.21.101 }
+            spine2: { ansible_host: 172.21.21.102 }
+        leaves:
+          hosts:
+            leaf1: { ansible_host: 172.21.21.11 }
+            leaf2: { ansible_host: 172.21.21.12 }
+            leaf3: { ansible_host: 172.21.21.13 }
+            leaf4: { ansible_host: 172.21.21.14 }
+            leaf5: { ansible_host: 172.21.21.15 }
+            leaf6: { ansible_host: 172.21.21.16 }
+    linux_clients:
+      # Driven through the Containerlab container runtime (docker exec).
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      hosts:
+        s1: { ansible_host: s1 }
+        s2: { ansible_host: s2 }
+        s3: { ansible_host: s3 }
+        s4: { ansible_host: s4 }
+        s5: { ansible_host: s5 }
+        s6: { ansible_host: s6 }
+        s7: { ansible_host: s7 }
+        s8: { ansible_host: s8 }
+        s9: { ansible_host: s9 }

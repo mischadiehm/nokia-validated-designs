@@ -1,0 +1,20 @@
+# s6: single-active LACP bond to leaf5+leaf6 (lag3, standby signaling), vlan 30 untagged.
+interfaces:
+  bond0:
+    ipv4:
+    - 172.16.30.6/24
+bonds:
+  bond0:
+    mode: 802.3ad
+    members:
+    - eth1
+    - eth2
+routes:
+- {family: ipv4, to: 172.16.10.0/24, via: 172.16.30.254, dev: bond0}
+- {family: ipv4, to: 172.16.20.0/24, via: 172.16.30.254, dev: bond0}
+- {family: ipv4, to: 172.16.92.0/22, via: 172.16.30.254, dev: bond0}
+endpoint_ipv4_ping_targets:
+- 172.16.30.254
+- 172.16.30.4
+- target: 172.16.10.2
+  source: 172.16.30.6
