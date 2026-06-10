@@ -27,10 +27,10 @@ topology:
       type: ixrd2l
     tor3:
       mgmt-ipv4: 172.21.21.13
-    tor4:
+    tor5:
       image: vrnetlab/nvidia_cumulus-vx:vx-5.16.1.qcow2
       kind: nvidia_cumulusvx
-      mgmt-ipv4: 172.21.21.14
+      mgmt-ipv4: 172.21.21.15
     s1:
       kind: linux
     s2:
@@ -64,11 +64,11 @@ topology:
     - endpoints: ["spine2:e1-26", "tor2:e1-52"]
     - endpoints: ["spine1:e1-29", "tor3:e1-29"]
     - endpoints: ["spine2:e1-30", "tor3:e1-30"]
-    - endpoints: ["spine1:e1-24", "tor4:swp1"]
-    - endpoints: ["spine2:e1-24", "tor4:swp2"]
+    - endpoints: ["spine1:e1-24", "tor5:swp1"]
+    - endpoints: ["spine2:e1-24", "tor5:swp2"]
     # tor switches to servers
     - endpoints: ["tor1:e1-55", "s4:eth1"]
     - endpoints: ["tor2:e1-56", "s5:eth1"]
     - endpoints: ["tor3:e1-32", "s6:eth1"]
-    - endpoints: ["tor4:swp3", "s7:eth1"]
-    - endpoints: ["tor4:swp4", "s8:eth1"]
+    - endpoints: ["tor5:swp3", "s7:eth1"]
+    - endpoints: ["tor5:swp4", "s8:eth1"]

@@ -57,7 +57,7 @@ srl_host:
                             preference-value: 500
                             capabilities:
                               non-revertive: true
-                    spine1-spine2-tor4-cumulus-lag:
+                    spine1-spine2-tor5-cumulus-lag:
                       admin-state: enable
                       esi: 00:00:12:00:00:00:00:00:00:00
                       multi-homing-mode: all-active
@@ -95,7 +95,7 @@ srl_host:
           lacp-port-priority: 32768
           reload-delay: 100
       ethernet-1/24:
-        description: spine1-spine2-tor4-cumulus-lag
+        description: spine1-spine2-tor5-cumulus-lag
         admin-state: enable
         ethernet:
           aggregate-id: lag5
@@ -432,7 +432,7 @@ srl_host:
             system-id-mac: 00:00:12:00:00:00
             system-priority: 32768
       lag5:
-        description: spine1-spine2-tor4-cumulus-lag
+        description: spine1-spine2-tor5-cumulus-lag
         admin-state: enable
         vlan-tagging: true
         subinterface:
