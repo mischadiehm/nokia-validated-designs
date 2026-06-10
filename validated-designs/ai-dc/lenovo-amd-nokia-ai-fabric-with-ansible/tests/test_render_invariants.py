@@ -64,8 +64,11 @@ def test_backend_qos_paths_match_v25_10_1_catalog(rendered):
     assert paths.get(f"{wred}/max-threshold-percent") == 80
     assert paths.get(f"{wred}/max-drop-probability-percent") == 100
     assert paths.get(
+        "/qos/queues/pfc-queue[pfc-queue-name=pfc0]/queue-index"
+    ) == "0"
+    assert paths.get(
         "/qos/buffer-management/buffer-allocation-profile[name=rocev2-burst]/"
-        "queues/pfc-queue[pfc-queue-name=pfc-0]/maximum-burst-size"
+        "queues/pfc-queue[pfc-queue-name=pfc0]/maximum-burst-size"
     ) == 52110640
     assert paths.get(
         "/qos/pfc-mapping-profile[name=rocev2-pfc]/received-pfc-pause-frames/"

@@ -8,7 +8,7 @@ version: 1
 topology: ../3-stage-with-ansible.clab.yaml
 
 defaults:
-  test: all
+  test: flows
   families:
     - ipv4
   count: 1

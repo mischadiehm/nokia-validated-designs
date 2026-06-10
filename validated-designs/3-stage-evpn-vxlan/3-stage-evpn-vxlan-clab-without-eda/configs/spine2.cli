@@ -105,18 +105,21 @@ set / network-instance default protocols bgp ebgp-default-policy import-reject-a
 set / network-instance default protocols bgp ebgp-default-policy export-reject-all true
 set / network-instance default protocols bgp afi-safi evpn admin-state enable
 set / network-instance default protocols bgp afi-safi evpn multipath allow-multiple-as true
-set / network-instance default protocols bgp afi-safi evpn multipath maximum-paths 64
+set / network-instance default protocols bgp afi-safi evpn multipath ebgp maximum-paths 64
+set / network-instance default protocols bgp afi-safi evpn multipath ibgp maximum-paths 64
 set / network-instance default protocols bgp afi-safi evpn evpn inter-as-vpn true
 set / network-instance default protocols bgp afi-safi evpn evpn rapid-update true
 set / network-instance default protocols bgp afi-safi ipv4-unicast admin-state enable
 set / network-instance default protocols bgp afi-safi ipv4-unicast multipath allow-multiple-as true
-set / network-instance default protocols bgp afi-safi ipv4-unicast multipath maximum-paths 6
+set / network-instance default protocols bgp afi-safi ipv4-unicast multipath ebgp maximum-paths 6
+set / network-instance default protocols bgp afi-safi ipv4-unicast multipath ibgp maximum-paths 6
 set / network-instance default protocols bgp afi-safi ipv4-unicast ipv4-unicast advertise-ipv6-next-hops true
 set / network-instance default protocols bgp afi-safi ipv4-unicast ipv4-unicast receive-ipv6-next-hops true
 set / network-instance default protocols bgp afi-safi ipv4-unicast evpn rapid-update true
 set / network-instance default protocols bgp afi-safi ipv6-unicast admin-state enable
 set / network-instance default protocols bgp afi-safi ipv6-unicast multipath allow-multiple-as true
-set / network-instance default protocols bgp afi-safi ipv6-unicast multipath maximum-paths 6
+set / network-instance default protocols bgp afi-safi ipv6-unicast multipath ebgp maximum-paths 6
+set / network-instance default protocols bgp afi-safi ipv6-unicast multipath ibgp maximum-paths 6
 set / network-instance default protocols bgp afi-safi ipv6-unicast evpn rapid-update true
 set / network-instance default protocols bgp preference ebgp 170
 set / network-instance default protocols bgp preference ibgp 170
@@ -134,7 +137,7 @@ set / network-instance default protocols bgp group bgpgroup-ebgp-dc1 afi-safi ip
 set / network-instance default protocols bgp group bgpgroup-ebgp-dc1 afi-safi ipv6-unicast admin-state enable
 set / routing-policy prefix-set prefixset-dc1 prefix 192.0.2.0/24 mask-length-range 32..32
 set / routing-policy policy ebgp-isl-export-policy-dc1 default-action policy-result reject
-set / routing-policy policy ebgp-isl-export-policy-dc1 statement 10 match prefix-set prefixset-dc1
+set / routing-policy policy ebgp-isl-export-policy-dc1 statement 10 match prefix prefix-set prefixset-dc1
 set / routing-policy policy ebgp-isl-export-policy-dc1 statement 10 match protocol local
 set / routing-policy policy ebgp-isl-export-policy-dc1 statement 10 action policy-result accept
 set / routing-policy policy ebgp-isl-export-policy-dc1 statement 10 action bgp local-preference set 100

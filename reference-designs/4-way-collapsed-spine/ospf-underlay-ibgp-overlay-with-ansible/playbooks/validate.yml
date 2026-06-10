@@ -13,7 +13,9 @@
       community.docker.docker_container_exec:
         container: "{{ ansible_host }}"
         command: >-
+          {{ ('ip vrf exec ' ~ item.vrf) if item is mapping and item.vrf is defined else '' }}
           ping -c 3
+          -W 2
           {{ ('-I ' ~ item.source) if item is mapping and item.source is defined else '' }}
           {{ item.target if item is mapping else item }}
       loop: "{{ endpoint_ipv4_ping_targets | default([]) }}"

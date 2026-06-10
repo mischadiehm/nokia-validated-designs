@@ -24,7 +24,7 @@ are the source; each rule below is pinned by `tests/test_render_invariants.py`.
   Same-rail gpu-to-gpu traffic routes inside the rail vrf; cross-rail traffic
   must fail - `validate.yml` asserts both live.
 - **RoCEv2 QoS from the Backend resource:** WRED/ECN slopes 5..80 percent
-  (max-drop 100), pfc-queue burst 52110640, PFC deadlock 750 ms, linecard
+  (max-drop 100), SR Linux `pfc0` queue burst 52110640, PFC deadlock 750 ms, linecard
   pfc-buffer-reservation 10, per-rail-port buffer-allocation binding.
   Containerlab accepts the config; PFC/ECN behavior needs hardware.
 - **Frontend and storage are SIMPLE bridge domains** (mac-vrf, no EVPN):

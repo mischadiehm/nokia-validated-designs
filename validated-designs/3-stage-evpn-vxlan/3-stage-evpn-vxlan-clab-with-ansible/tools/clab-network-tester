@@ -41,6 +41,7 @@ class TestMode(str, Enum):
     gateways = "gateways"
     hosts = "hosts"
     all = "all"
+    flows = "flows"
 
 
 @dataclass(frozen=True)
@@ -644,6 +645,13 @@ def flow_spec(name: str, flows: dict[str, Any]) -> str:
     if not source or not target:
         raise ValueError(f"flow {name!r} requires source and target")
     return f"{source},{target}"
+
+
+def build_flow_cases(
+    flows: dict[str, Any],
+    addresses: list[EndpointAddress],
+) -> list[PingCase]:
+    return [parse_ping_case(flow_spec(name, flows), addresses) for name in sorted(flows)]
 
 
 def ping_command(
@@ -1396,6 +1404,8 @@ def cli(
 
         if case_spec:
             cases = [parse_ping_case(case_spec, addresses)]
+        elif run_test == TestMode.flows:
+            cases = build_flow_cases(network_test.flows, addresses)
         else:
             cases = build_cases(addresses, run_test, families)
     except (OSError, ValueError) as exc:

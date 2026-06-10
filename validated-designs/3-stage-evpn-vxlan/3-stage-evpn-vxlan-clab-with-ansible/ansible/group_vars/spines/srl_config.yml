@@ -168,7 +168,13 @@ srl_spine_common:
             afi-safi:
               ipv4-unicast:
                 multipath:
-                  maximum-paths: 6
+                  ebgp:
+                    maximum-paths: 6
+                  ibgp:
+                    maximum-paths: 6
               ipv6-unicast:
                 multipath:
-                  maximum-paths: 6
+                  ebgp:
+                    maximum-paths: 6
+                  ibgp:
+                    maximum-paths: 6

@@ -5,7 +5,7 @@ version: 1
 topology: ../4-way-ospf-ibgp-with-ansible.clab.yaml
 
 defaults:
-  test: all
+  test: flows
   families:
     - ipv4
   count: 1

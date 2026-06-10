@@ -36,6 +36,8 @@ routes:
   table: 1
 endpoint_ipv4_ping_targets:
 - target: 172.16.100.0
-  source: clab-vrf
+  vrf: clab-vrf
+  source: 172.16.100.1
 - target: 172.16.10.1
-  source: clab-vrf
+  vrf: clab-vrf
+  source: 172.16.92.10

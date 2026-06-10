@@ -165,10 +165,16 @@ srl_leaf_common:
             afi-safi:
               ipv4-unicast:
                 multipath:
-                  maximum-paths: 2
+                  ebgp:
+                    maximum-paths: 2
+                  ibgp:
+                    maximum-paths: 2
               ipv6-unicast:
                 multipath:
-                  maximum-paths: 2
+                  ebgp:
+                    maximum-paths: 2
+                  ibgp:
+                    maximum-paths: 2
       macvrf-v10:
         type: mac-vrf
         admin-state: enable

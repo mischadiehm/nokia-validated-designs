@@ -40,7 +40,10 @@ srl_common:
                 admin-state: enable
                 multipath:
                   allow-multiple-as: true
-                  maximum-paths: 64
+                  ebgp:
+                    maximum-paths: 64
+                  ibgp:
+                    maximum-paths: 64
                 evpn:
                   inter-as-vpn: true
                   rapid-update: true
@@ -96,7 +99,8 @@ srl_common:
           statement:
             '10':
               match:
-                prefix-set: prefixset-dc1
+                prefix:
+                  prefix-set: prefixset-dc1
                 protocol: local
               action:
                 policy-result: accept

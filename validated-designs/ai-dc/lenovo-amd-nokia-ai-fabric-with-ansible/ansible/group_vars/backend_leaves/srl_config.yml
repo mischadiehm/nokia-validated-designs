@@ -5,13 +5,18 @@
 #   detection/recovery 750 ms, queue maximum-burst-size 52110640 bytes.
 # Paths verified against the SR Linux v25.10.1 release path catalog
 # (yang-browser paths.json): queue-management-profile wred slopes,
-# buffer-allocation-profile pfc-queue burst, pfc-mapping-profile deadlock,
-# linecard pfc-buffer-reservation, qos interface output binding.
+# buffer-allocation-profile pfc0 burst (SR Linux default PFC queue 0),
+# pfc-mapping-profile deadlock, linecard pfc-buffer-reservation,
+# qos interface output binding.
 # Per-rail routed access and the rail ip-vrfs live in host_vars (the rails
 # are leaf-local: leaf1 owns rail1..rail4, leaf2 owns rail5..rail8).
 srl_backend_common:
   update:
     qos:
+      queues:
+        pfc-queue:
+          pfc0:
+            queue-index: 0
       buffer-management:
         queue-management-profile:
           rocev2-ecn:
@@ -30,7 +35,7 @@ srl_backend_common:
           rocev2-burst:
             queues:
               pfc-queue:
-                pfc-0:
+                pfc0:
                   maximum-burst-size: 52110640
       pfc-mapping-profile:
         rocev2-pfc:
