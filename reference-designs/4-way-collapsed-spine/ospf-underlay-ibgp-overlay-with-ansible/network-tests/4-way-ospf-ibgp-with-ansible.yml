@@ -1,0 +1,38 @@
+---
+# Data-plane flow matrix for tools/clab-network-tester. s8/s9 are excluded:
+# upstream leaves their switch side dark (see host_vars comments).
+version: 1
+topology: ../4-way-ospf-ibgp-with-ansible.clab.yaml
+
+defaults:
+  test: all
+  families:
+    - ipv4
+  count: 1
+  timeout: 2
+  sweep_interval: 30
+  flow_interval: 1
+
+endpoints:
+  source:
+    type: ansible_host_vars
+    inventory: ../ansible/inventory.yml
+    host_vars_dir: ../ansible/host_vars
+    group: linux_clients
+
+flows:
+  s1-to-s3-v10:
+    source: s1:172.16.10.1
+    target: s3:172.16.10.3
+  s1-to-s2-v10-v20:
+    source: s1:172.16.10.1
+    target: s2:172.16.20.2
+  s5-to-s7-v40-v60:
+    source: s5:172.16.40.5
+    target: s7:172.16.60.7
+  s4-to-s6-v30-v50:
+    source: s4:172.16.30.4
+    target: s6:172.16.50.6
+  s1-to-s10-lo:
+    source: s1:172.16.10.1
+    target: s10:172.16.92.10

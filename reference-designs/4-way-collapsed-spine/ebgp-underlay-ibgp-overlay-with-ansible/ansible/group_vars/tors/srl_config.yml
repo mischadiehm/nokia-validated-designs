@@ -1,0 +1,6 @@
+---
+# ToR layer: the three tors are plain L2 access switches (no BGP, no EVPN,
+# no bridge-table tuning in the oracle). Everything is per-tor in host_vars;
+# this layer exists only to make the group explicit.
+srl_tor_common:
+  update: {}

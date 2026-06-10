@@ -1,0 +1,151 @@
+---
+# Per-spine remainder; the shared fabric layer is group_vars/spines/.
+# OSPF sibling quirk map (mirrored from the oracle): no host-names at all;
+# bare e1-7 admin on spine1/spine2; bare ip-forwarding on spine2; local-as
+# kept on spine3/spine4 only; ospf router-id = lo0 address.
+srl_host:
+  update:
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.103/32
+      ethernet-1/5:
+        description: spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+          reload-delay: 100
+      lag1:
+        description: spine3-spine4-lag1
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '60':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 60
+          '70':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 70
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:00:00:33:44
+            system-priority: 32768
+      lo0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 172.16.1.103/32
+    network-instance:
+      default:
+        router-id: 192.0.2.103
+        protocols:
+          bgp:
+            router-id: 192.0.2.103
+            group:
+              bgp-overlay:
+                transport:
+                  local-address: 192.0.2.103
+                local-as:
+                  as-number: 65500
+            neighbor:
+              192.0.2.101:
+                admin-state: enable
+                peer-group: bgp-overlay
+              192.0.2.102:
+                admin-state: enable
+                peer-group: bgp-overlay
+              192.0.2.104:
+                admin-state: enable
+                peer-group: bgp-overlay
+          ospf:
+            instance:
+              '1':
+                router-id: 172.16.1.103
+      macvrf-v60:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v60
+        interface:
+          irb0.60: {}
+          lag1.60: {}
+        vxlan-interface:
+          vxlan0.560: {}
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.560
+                evi: 60
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:60:60
+                  import-rt: target:60:60
+      macvrf-v70:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v70
+        interface:
+          irb0.70: {}
+          lag1.70: {}
+        vxlan-interface:
+          vxlan0.570: {}
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.570
+                evi: 70
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:70:70
+                  import-rt: target:70:70
+    system:
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    spine3-spine4-lag1:
+                      admin-state: enable
+                      esi: 00:00:00:00:33:44:00:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag1
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default

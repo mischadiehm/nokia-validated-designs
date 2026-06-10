@@ -1,0 +1,87 @@
+---
+# Plain L2 access tor; no host-name, BGP or bridge-table in the oracle.
+srl_host:
+  update:
+    interface:
+      ethernet-1/1:
+        description: spine1-spine2-spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+      ethernet-1/2:
+        description: spine1-spine2-spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+      ethernet-1/3:
+        description: spine1-spine2-spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+      ethernet-1/4:
+        description: spine1-spine2-spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+      ethernet-1/5:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      ethernet-1/6:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      lag1:
+        description: spine1-spine2-spine3-spine4-lag1
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '40':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 40
+          '50':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 50
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:00:22:22:22
+    network-instance:
+      macvrf-v40:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v40
+        interface:
+          ethernet-1/5.4096: {}
+          lag1.40: {}
+      macvrf-v50:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v50
+        interface:
+          ethernet-1/6.4096: {}
+          lag1.50: {}

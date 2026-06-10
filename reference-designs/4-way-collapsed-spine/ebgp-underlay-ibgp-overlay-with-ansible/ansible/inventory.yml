@@ -1,0 +1,33 @@
+---
+# Static inventory for the 4-way collapsed-spine (eBGP underlay / iBGP
+# overlay) reference design lab. Mgmt IPs match the clab topology.
+all:
+  children:
+    srl:
+      children:
+        spines:
+          hosts:
+            spine1: { ansible_host: 172.21.21.101 }
+            spine2: { ansible_host: 172.21.21.102 }
+            spine3: { ansible_host: 172.21.21.103 }
+            spine4: { ansible_host: 172.21.21.104 }
+        tors:
+          hosts:
+            tor1: { ansible_host: 172.21.21.11 }
+            tor2: { ansible_host: 172.21.21.12 }
+            tor3: { ansible_host: 172.21.21.13 }
+    linux_clients:
+      vars:
+        ansible_connection: local
+        ansible_python_interpreter: "{{ ansible_playbook_python }}"
+      hosts:
+        s1: { ansible_host: s1 }
+        s2: { ansible_host: s2 }
+        s3: { ansible_host: s3 }
+        s4: { ansible_host: s4 }
+        s5: { ansible_host: s5 }
+        s6: { ansible_host: s6 }
+        s7: { ansible_host: s7 }
+        s8: { ansible_host: s8 }
+        s9: { ansible_host: s9 }
+        s10: { ansible_host: s10 }

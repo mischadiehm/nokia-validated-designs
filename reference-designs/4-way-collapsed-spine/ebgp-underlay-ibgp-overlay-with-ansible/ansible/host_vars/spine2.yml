@@ -1,0 +1,157 @@
+---
+# Per-spine remainder; the shared fabric layer is group_vars/spines/.
+# Upstream quirks mirrored on purpose: BGP router-id 192.0.2.1<n> differs
+# from the system/NI router-id 192.0.2.10<n>; host-name exists only on
+# spine1 and spine3; spine2 carries a stray bare lo0.
+srl_host:
+  update:
+    interface:
+      system0:
+        subinterface:
+          '0':
+            ipv4:
+              address: 192.0.2.102/32
+      ethernet-1/5:
+        description: spine1-spine2-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+          lacp-port-priority: 32768
+          reload-delay: 100
+      lag1:
+        description: spine1-spine2-lag1
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '10':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 10
+          '30':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 30
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:00:00:11:22
+            system-priority: 32768
+      lo0:
+        admin-state: enable
+    network-instance:
+      default:
+        router-id: 192.0.2.102
+        protocols:
+          bgp:
+            autonomous-system: 65502
+            router-id: 192.0.2.12
+            group:
+              bgp-overlay:
+                transport:
+                  local-address: 192.0.2.102
+            dynamic-neighbors:
+              interface:
+                ethernet-1/1.0:
+                  peer-group: bgp-underlay
+                  allowed-peer-as:
+                  - 65501
+                ethernet-1/2.0:
+                  peer-group: bgp-underlay
+                  allowed-peer-as:
+                  - 65503
+                ethernet-1/3.0:
+                  peer-group: bgp-underlay
+                  allowed-peer-as:
+                  - 65504
+            neighbor:
+              192.0.2.101:
+                admin-state: enable
+                peer-group: bgp-overlay
+              192.0.2.103:
+                admin-state: enable
+                peer-group: bgp-overlay
+              192.0.2.104:
+                admin-state: enable
+                peer-group: bgp-overlay
+      macvrf-v10:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v10
+        interface:
+          irb0.10: {}
+          lag1.10: {}
+        vxlan-interface:
+          vxlan0.510: {}
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.510
+                evi: 10
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:10:10
+                  import-rt: target:10:10
+      macvrf-v30:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v30
+        interface:
+          irb0.30: {}
+          lag1.30: {}
+        vxlan-interface:
+          vxlan0.530: {}
+        protocols:
+          bgp-evpn:
+            bgp-instance:
+              '1':
+                vxlan-interface: vxlan0.530
+                evi: 30
+                ecmp: 8
+                routes:
+                  bridge-table:
+                    mac-ip:
+                      advertise-arp-nd-only-with-mac-table-entry: true
+          bgp-vpn:
+            bgp-instance:
+              '1':
+                route-target:
+                  export-rt: target:30:30
+                  import-rt: target:30:30
+    system:
+      network-instance:
+        protocols:
+          evpn:
+            ethernet-segments:
+              bgp-instance:
+                '1':
+                  ethernet-segment:
+                    spine1-spine2-lag1:
+                      admin-state: enable
+                      esi: 00:00:00:00:00:11:22:00:00:00
+                      multi-homing-mode: all-active
+                      interface: lag1
+                      df-election:
+                        timers:
+                          activation-timer: 0
+                        algorithm:
+                          type: default

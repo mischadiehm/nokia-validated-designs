@@ -1,0 +1,77 @@
+---
+# Plain L2 access tor; no host-name, BGP or bridge-table in the oracle.
+srl_host:
+  update:
+    interface:
+      ethernet-1/1:
+        description: spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+      ethernet-1/2:
+        description: spine3-spine4-lag1
+        admin-state: enable
+        ethernet:
+          aggregate-id: lag1
+      ethernet-1/3:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      ethernet-1/4:
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '4096':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap: untagged
+      lag1:
+        description: spine3-spine4-lag1
+        admin-state: enable
+        vlan-tagging: true
+        subinterface:
+          '60':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 60
+          '70':
+            type: bridged
+            admin-state: enable
+            vlan:
+              encap:
+                single-tagged:
+                  vlan-id: 70
+        lag:
+          lag-type: lacp
+          min-links: 1
+          lacp-fallback-mode: static
+          lacp-fallback-timeout: 60
+          lacp:
+            interval: FAST
+            lacp-mode: ACTIVE
+            admin-key: 1
+            system-id-mac: 00:00:00:33:33:33
+    network-instance:
+      macvrf-v60:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v60
+        interface:
+          ethernet-1/3.4096: {}
+          lag1.60: {}
+      macvrf-v70:
+        type: mac-vrf
+        admin-state: enable
+        description: macvrf-v70
+        interface:
+          ethernet-1/4.4096: {}
+          lag1.70: {}

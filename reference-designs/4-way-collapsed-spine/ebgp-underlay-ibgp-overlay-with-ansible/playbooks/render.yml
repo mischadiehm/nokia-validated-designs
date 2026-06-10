@@ -1,0 +1,16 @@
+---
+# Test helper: render every SR Linux node's native operations to a scratch
+# directory so the CLI-fidelity pytest can compare them against the
+# without-eda configs. Render-only; no device is contacted.
+- name: Render SR Linux operations for fidelity tests
+  hosts: srl
+  gather_facts: false
+  tasks:
+    - name: Render operations with the collection filter
+      ansible.builtin.set_fact:
+        render_ops: "{{ hostvars[inventory_hostname] | nokia.srlinux.to_config_operations }}"
+    - name: Write operations to the scratch directory
+      ansible.builtin.copy:
+        content: "{{ render_ops | to_nice_json }}\n"
+        dest: "{{ render_dir | default('/tmp/4way-ebgp-ibgp-render') }}/{{ inventory_hostname }}.json"
+      delegate_to: localhost

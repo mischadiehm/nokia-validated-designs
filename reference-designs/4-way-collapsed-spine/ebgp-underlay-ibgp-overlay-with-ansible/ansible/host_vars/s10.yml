@@ -1,0 +1,41 @@
+---
+# s10: routed access on spine4 e1-7 (172.16.100.0/31), loopbacks in VRF
+# table 1 advertised by spine4's vrf1 static 172.16.92.0/22. Mirrors
+# base-configs/s10.sh including the duplicate 172.16.93.10 on lo2/lo3.
+interfaces:
+  eth1:
+    ipv4:
+    - 172.16.100.1/24
+bonds: {}
+dummies:
+  lo1:
+    ipv4:
+    - 172.16.92.10/24
+  lo2:
+    ipv4:
+    - 172.16.93.10/24
+  lo3:
+    ipv4:
+    - 172.16.93.10/24
+  lo4:
+    ipv4:
+    - 172.16.94.10/24
+vrfs:
+  clab-vrf:
+    table: 1
+    members:
+    - eth1
+    - lo1
+    - lo2
+    - lo3
+    - lo4
+routes:
+- family: ipv4
+  to: 0.0.0.0/0
+  via: 172.16.100.0
+  table: 1
+endpoint_ipv4_ping_targets:
+- target: 172.16.100.0
+  source: clab-vrf
+- target: 172.16.10.1
+  source: clab-vrf

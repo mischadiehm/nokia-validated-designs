@@ -1,0 +1,30 @@
+---
+# s5: tor2 e1-5, vlan 40 untagged (4-way ESI-LAG), vrf1 scope.
+interfaces:
+  eth1:
+    ipv4:
+    - 172.16.40.5/24
+bonds: {}
+routes:
+- family: ipv4
+  to: 172.16.10.0/24
+  via: 172.16.40.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.20.0/24
+  via: 172.16.40.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.60.0/24
+  via: 172.16.40.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.92.0/22
+  via: 172.16.40.254
+  dev: eth1
+endpoint_ipv4_ping_targets:
+- 172.16.40.254
+- target: 172.16.10.1
+  source: 172.16.40.5
+- target: 172.16.60.7
+  source: 172.16.40.5

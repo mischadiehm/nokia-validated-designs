@@ -1,0 +1,31 @@
+---
+# s1: spine1 e1-4, vlan 10 untagged, vrf1 scope.
+interfaces:
+  eth1:
+    ipv4:
+    - 172.16.10.1/24
+bonds: {}
+routes:
+- family: ipv4
+  to: 172.16.20.0/24
+  via: 172.16.10.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.40.0/24
+  via: 172.16.10.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.60.0/24
+  via: 172.16.10.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.92.0/22
+  via: 172.16.10.254
+  dev: eth1
+endpoint_ipv4_ping_targets:
+- 172.16.10.254
+- 172.16.10.3
+- target: 172.16.20.2
+  source: 172.16.10.1
+- target: 172.16.92.10
+  source: 172.16.10.1

@@ -1,0 +1,19 @@
+---
+# s8: tor3 e1-4, vlan 70 untagged. Upstream quirk: irb0.70 reuses the
+# v60 gateway 172.16.60.254, so s8's configured gateway 172.16.70.254
+# does not exist anywhere - no ping targets, mirrored as-is.
+interfaces:
+  eth1:
+    ipv4:
+    - 172.16.70.8/24
+bonds: {}
+routes:
+- family: ipv4
+  to: 172.16.30.0/24
+  via: 172.16.70.254
+  dev: eth1
+- family: ipv4
+  to: 172.16.50.0/24
+  via: 172.16.70.254
+  dev: eth1
+endpoint_ipv4_ping_targets: []

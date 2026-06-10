@@ -1,0 +1,32 @@
+---
+# s9: 802.3ad bond to spine1/spine2 e1-7. Upstream quirk: neither spine
+# configures e1-7 at all, so this endpoint is dark - bond mirrored from
+# base-configs/s9.sh, no ping targets.
+interfaces:
+  bond0:
+    ipv4:
+    - 172.16.20.9/24
+bonds:
+  bond0:
+    mode: 802.3ad
+    members:
+    - eth1
+    - eth2
+routes:
+- family: ipv4
+  to: 172.16.10.0/24
+  via: 172.16.20.254
+  dev: bond0
+- family: ipv4
+  to: 172.16.40.0/24
+  via: 172.16.20.254
+  dev: bond0
+- family: ipv4
+  to: 172.16.60.0/24
+  via: 172.16.20.254
+  dev: bond0
+- family: ipv4
+  to: 172.16.92.0/22
+  via: 172.16.20.254
+  dev: bond0
+endpoint_ipv4_ping_targets: []

@@ -1,0 +1,14 @@
+---
+# Builds srl_config for nokia.srlinux.to_config_operations by deep-merging
+# the layers below (later wins). Spines carry the fabric (eBGP underlay
+# mesh, iBGP EVPN overlay, services, ESI-LAGs); tors are plain L2 access
+# switches. The spine oracle configs bake the ssh-key deletes in (the tor
+# configs do not), so the delete bucket lives in the spine layer.
+srl_config: >-
+  {{ srl_common
+     | combine(srl_spine_common | default({}, true), recursive=true)
+     | combine(srl_tor_common | default({}, true), recursive=true)
+     | combine(srl_host | default({}, true), recursive=true) }}
+
+srl_common:
+  update: {}
