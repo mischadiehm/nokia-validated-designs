@@ -7,10 +7,10 @@ Ansible-driven build of this reference design: the same 2-spine / 6-leaf /
 (instance 1, area 0.0.0.0, point-to-point ISLs with BFD, passive system0,
 IPv4-unnumbered ISLs borrowing lo0) and the iBGP EVPN overlay (AS 65500,
 spine route reflectors with cluster-id 1, loopback peering, multihop, BFD on
-system0.0). Intent is readable YAML rendered by the nokia.srlinux collection
-(md fork tag `v1.2.0-md.1`); `../configs/*.cli` is the fidelity oracle,
-proven by `uv run pytest` for all 8 nodes (including the oracle's
-`delete /` lines).
+system0.0). Intent is readable YAML rendered by `narrowin.srlinux_intent`,
+with transport and device modules from the supported `nokia.srlinux`
+collection; `../configs/*.cli` is the fidelity oracle, proven by
+`uv run pytest` for all 8 nodes (including the oracle's `delete /` lines).
 
 Mirrored upstream quirks (documented, not fixed): the spine configs carry no
 host-name and no LLDP, the underlay/dc1 policy leftovers from the eBGP

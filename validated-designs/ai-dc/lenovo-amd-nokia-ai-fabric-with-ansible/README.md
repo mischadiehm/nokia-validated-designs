@@ -7,8 +7,8 @@
 An Ansible-driven build of the Lenovo-Nokia AI fabric: 2 backend leaves
 (IXR-H4, RoCEv2 rails), 2 frontend leaves (IXR-D3L), 2 storage leaves
 (IXR-D5), 2 GPU servers, a frontend server and a storage server. No EDA, no
-Kubernetes - readable YAML intent rendered by the nokia.srlinux collection
-(md fork tag `v1.2.0-md.1`).
+Kubernetes - readable YAML intent rendered by `narrowin.srlinux_intent`, with
+transport and device modules from the supported `nokia.srlinux` collection.
 
 ## The design (derivation rules)
 

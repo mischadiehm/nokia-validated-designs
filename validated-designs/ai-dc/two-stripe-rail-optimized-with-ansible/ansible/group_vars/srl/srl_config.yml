@@ -1,5 +1,5 @@
 ---
-# Builds srl_config for nokia.srlinux.to_config_operations by deep-merging
+# Builds srl_config for narrowin.srlinux_intent.to_config_operations by deep-merging
 # the group layers (later wins). ASN/system-IP mapping is pinned (EDA pool
 # allocation is not reproducible): backend leaf ASN = 100 + leafindex
 # (stripe1 leaf1..8 -> 101..108, stripe2 leaf1..8 -> 109..116), backend

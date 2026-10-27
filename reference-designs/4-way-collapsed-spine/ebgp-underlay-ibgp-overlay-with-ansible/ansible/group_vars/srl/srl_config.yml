@@ -1,5 +1,5 @@
 ---
-# Builds srl_config for nokia.srlinux.to_config_operations by deep-merging
+# Builds srl_config for narrowin.srlinux_intent.to_config_operations by deep-merging
 # the layers below (later wins). Spines carry the fabric (eBGP underlay
 # mesh, iBGP EVPN overlay, services, ESI-LAGs); tors are plain L2 access
 # switches. The spine oracle configs bake the ssh-key deletes in (the tor

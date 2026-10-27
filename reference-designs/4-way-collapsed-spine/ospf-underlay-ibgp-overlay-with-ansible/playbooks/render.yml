@@ -8,9 +8,10 @@
   tasks:
     - name: Render operations with the collection filter
       ansible.builtin.set_fact:
-        render_ops: "{{ hostvars[inventory_hostname] | nokia.srlinux.to_config_operations }}"
+        render_ops: "{{ hostvars[inventory_hostname] | narrowin.srlinux_intent.to_config_operations }}"
     - name: Write operations to the scratch directory
       ansible.builtin.copy:
         content: "{{ render_ops | to_nice_json }}\n"
         dest: "{{ render_dir | default('/tmp/4way-ospf-ibgp-render') }}/{{ inventory_hostname }}.json"
+        mode: "0644"
       delegate_to: localhost

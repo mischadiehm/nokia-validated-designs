@@ -6,10 +6,11 @@ Ansible-driven build of this reference design: four collapsed spines in a
 full-mesh eBGP underlay (per-spine AS 65501..65504, IPv6-unnumbered ISLs,
 BFD) with an iBGP EVPN overlay (AS 65500, loopback peering, multihop), three
 plain L2 tors behind ESI-LAGs (spine1+2 -> tor1, all four -> tor2, spine3+4
--> tor3) and ten endpoints. Intent is readable YAML rendered by the
-nokia.srlinux collection (md fork tag `v1.2.0-md.1`);
-`../ebgp-underlay-ibgp-overlay/configs/*.cli` is the fidelity oracle, proven
-by `uv run pytest` for all 7 nodes (including the spine `delete /` lines).
+-> tor3) and ten endpoints. Intent is readable YAML rendered by
+`narrowin.srlinux_intent`, with transport and device modules from the supported
+`nokia.srlinux` collection; `../ebgp-underlay-ibgp-overlay/configs/*.cli` is
+the fidelity oracle, proven by `uv run pytest` for all 7 nodes (including the
+spine `delete /` lines).
 
 Mirrored upstream quirks (documented, not fixed): BGP router-id 192.0.2.1<n>
 differs from the system IP 192.0.2.10<n>; host-name only on spine1/spine3;

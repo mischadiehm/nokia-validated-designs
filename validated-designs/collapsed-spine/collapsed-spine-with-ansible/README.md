@@ -28,8 +28,8 @@ The decisions worth reacting to:
 
 - **Intent is readable YAML, not raw gNMI.** Each node's config lives in
   `ansible/host_vars/<node>.yml` as a plain tree under `srl_config`. A filter
-  renders it to native `nokia.srlinux.config` paths. You think in structure, not in
-  gNMI path strings.
+  from `narrowin.srlinux_intent` renders it to native `nokia.srlinux.config`
+  paths. You think in structure, not in gNMI path strings.
 - **One validated transaction per node.** By default `srl_config` uses the official
   Nokia module flow: validate the rendered intent, ask SR Linux for the diff, and
   apply only when the device reports a change. Optional host-side pruning can be
@@ -39,9 +39,8 @@ The decisions worth reacting to:
   shared/lab nodes; we prune only known defaults explicitly instead of enumerating
   every leaf to own a path. `replace:` exists but is opt-in.
 - **List-keys come from the released path catalog, not guesswork.**
-  the nokia.srlinux collection ships a list-key catalog generated from SR
-  Linux's `paths.json` (`scripts/sync-srl-list-keys` in the collection repo), so
-  the renderer keys YANG lists by full path context (the same node
+  the Narrowin intent collection ships a list-key catalog generated from SR
+  Linux's `paths.json`, so the renderer keys YANG lists by full path context (the same node
   name can key on `name` in one place and `index` in another).
 
 ## Where things are
@@ -52,8 +51,8 @@ ansible/
   host_vars/<node>.yml            # per-node intent — the source of truth
   roles/
     linux_endpoint/               # configure the traffic-source containers
-  # srl_config / srl_validate roles and the srl intent renderer live in the
-  # nokia.srlinux collection fork (requirements.yml pins tag v1.2.0-md.1)
+  # SR Linux transport/modules come from nokia.srlinux.
+  # Intent roles and filters come from narrowin.srlinux_intent.
 playbooks/
   deploy.yml                      # apply intent
   validate.yml                    # assert state (BGP, ES, LAG, pings)
@@ -80,8 +79,9 @@ uv run ansible-playbook playbooks/validate.yml              # assert state
 uv run ansible-playbook playbooks/deploy.yml                # idempotency: changed=0
 ```
 
-Tested with SR Linux `25.3.2`, `ansible-core` `2.21.0`, `nokia.srlinux` `1.2.0`
-(md fork tag `v1.2.0-md.1`, list-key catalog `v25.10.1`).
+Tested with SR Linux `25.3.2`, `ansible-core` `2.21.0`, supported
+`nokia.srlinux` `1.1.1`, and local `narrowin.srlinux_intent` `0.1.0`
+(list-key catalog `v25.10.2`).
 SR Linux login: `admin` / `NokiaSrl1!` (e.g. `ssh admin@172.21.21.101`).
 
 > **Note:** Linux endpoint config is ephemeral — a `containerlab` redeploy wipes
@@ -98,7 +98,7 @@ deploy/automation order — is **(1) underlay → (2) multihoming → (3) servic
 (4) endpoints**.
 
 ```mermaid
-flowchart LR
+flowchart TD
   U["1 · Underlay<br/>eBGP unnumbered + BFD<br/>(VTEP reachability)"]
   M["2 · Multihoming<br/>ESI-LAGs, DF election<br/>(redundant access)"]
   S["3 · Services<br/>MAC-VRF + IRB + IP-VRF<br/>(L2/L3 overlay)"]
@@ -282,14 +282,19 @@ anycast GW → IP-VRF → VXLAN over eBGP underlay → remote spine → destinat
 
 How a config change flows from model to device:
 
-```text
-SR Linux YANG Browser -> host_vars/<node>.yml -> nokia.srlinux.to_config_operations filter -> validate -> config
-   (find the path)       (readable srl_config)   (native operations)   (device diff)
+```mermaid
+flowchart LR
+  Y["SR Linux YANG Browser"] --> H["host_vars/&lt;node&gt;.yml<br/>readable srl_config"]
+  H --> F["narrowin.srlinux_intent.to_config_operations"]
+  F --> V["nokia.srlinux.validate<br/>update, replace"]
+  V --> D["nokia.srlinux.config<br/>check/diff preflight"]
+  D --> C["nokia.srlinux.config<br/>apply"]
 ```
 
 You author intent with three buckets under `srl_config`. The filter
-(`nokia.srlinux.to_config_operations`) renders the full intent, the role
-validates it, and `nokia.srlinux.config` asks SR Linux for the effective diff
+(`narrowin.srlinux_intent.to_config_operations`) renders the full intent. The role
+uses `nokia.srlinux.validate` for update and replace operations, then
+runs the full operation set, including deletes, through `nokia.srlinux.config` in check/diff mode
 before applying. If SR Linux reports no diff, the config module exits unchanged.
 When host-side pruning is explicitly enabled, the role first reads running config,
 prunes unchanged operations on the Ansible host, and sends only the local delta to
@@ -376,8 +381,8 @@ fetches a release `paths.json`, extracts `type=[list]` entries, and compares the
 discovered keys with `LIST_KEY_PATHS`:
 
 ```bash
-uv run scripts/sync-srl-list-keys --version v25.10.1          # check against a release
-uv run scripts/sync-srl-list-keys --version v25.10.1 --sync   # regenerate the map
+uv run python scripts/sync-srl-list-keys --version v25.10.2          # check against a release
+uv run python scripts/sync-srl-list-keys --version v25.10.2 --sync   # regenerate the map
 ```
 
 Before generating a live preview or applying intent, the `srl_config` role reads
@@ -392,8 +397,9 @@ deploy.
 The guard compares down to the patch level, so even a patch bump (for example
 `v25.3.2` to `v25.3.3`) trips it by design; re-sync the catalog as below. The
 inverse direction is intentionally not guarded: a same-or-newer catalog against
-an older device is allowed, since SR Linux's own `nokia.srlinux.validate`
-remains the schema backstop at apply. The guard is tag-gated on
+an older device is allowed, since SR Linux's own `nokia.srlinux.validate` and
+the `nokia.srlinux.config` check/diff preflight remain the schema backstops at
+apply. The guard is tag-gated on
 `srl_schema_check`, so `--skip-tags srl_schema_check` disables it; don't combine
 that flag with a live deploy.
 
@@ -403,32 +409,20 @@ Use the tagged preflight for a no-apply schema check:
 uv run ansible-playbook playbooks/deploy.yml --tags srl_schema_check
 ```
 
-When moving the lab to a newer SR Linux release, start with the release
-advisor (collection repo; consume it, do not fork it). It audits the list-key
-metadata, diffs the two release path catalogs, renders this inventory offline
-(`ansible_connection=local` is forced, no device contact), and writes a
-warnings file listing which of this lab's intent each catalog change affects,
-per host:
+When moving the lab to a newer SR Linux release, first audit and regenerate the
+collection list-key metadata:
 
 ```bash
-# in the collection repo
-uv run scripts/srl-release-advisor --from v25.10.1 --to v26.3.1 \
-    --inventory <this repo>/ansible/inventory.yml
-```
-
-Then upgrade the local inventory metadata:
-
-```bash
-uv run scripts/sync-srl-list-keys --version v26.3.1 --sync    # in the collection repo
+uv run python scripts/sync-srl-list-keys --version v26.3.1 --sync    # in the collection repo
 uv run pytest
 uv run ansible-playbook playbooks/deploy.yml --syntax-check
 uv run ansible-lint playbooks/deploy.yml playbooks/validate.yml
 ```
 
-Then work through the warnings file and review `ansible/host_vars/` and
-`ansible/group_vars/` for release-specific schema changes before deploying.
-Warnings are predictions: SR Linux still enforces schema truth at deploy via
-`nokia.srlinux.validate`; the version guard only prevents using older renderer
+Then review `ansible/host_vars/` and `ansible/group_vars/` for release-specific
+schema changes before deploying. SR Linux still enforces schema truth at deploy
+via `nokia.srlinux.validate` and `nokia.srlinux.config` check/diff preflight for
+the full operation set; the version guard only prevents using older renderer
 metadata against a newer device.
 
 Optional host-side pruning is available with:
@@ -457,10 +451,6 @@ Linux has the final schema and value-normalization truth.
 
 - **`scripts/sync-srl-list-keys`** (collection repo) — syncs list-key rendering against a given SR Linux
   release (see [List-key sync](#list-key-sync)).
-- **`scripts/srl-release-advisor`** (collection repo) — one command per SR Linux
-  release: audits the list-key metadata, diffs the release path catalogs, and
-  matches the changes against this inventory's rendered operations into a
-  per-host warnings file. Offline; never connects to a node.
 - **`tools/clab-network-tester`** — self-contained `uv` script that generates
   source-bound endpoint traffic across the real data plane. Auto-detects the topology
   and loads `network-tests/2-way-collapsed-spine.yml`; reads `ansible/inventory.yml`

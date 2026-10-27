@@ -18,7 +18,7 @@ import pytest
 
 from conftest import LAB_ROOT, render_all_nodes
 
-from ansible_collections.nokia.srlinux.plugins.module_utils.to_config_operations.renderer import (
+from ansible_collections.narrowin.srlinux_intent.plugins.module_utils.to_config_operations.renderer import (
     operations_from_config,
 )
 

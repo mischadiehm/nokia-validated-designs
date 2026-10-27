@@ -8,7 +8,8 @@ An Ansible-driven build of the rail-optimized AI fabric: two 8-leaf stripes
 (IXR-H4 / IXR-H5-64D) joined by two stripe-connector spines, plus a frontend
 fabric (2x IXR-H5-64O spines, 2x IXR-D5 leaves) carrying an EVPN-VXLAN
 storage vnet for 4 storage servers and 8 weka nodes. No EDA - readable YAML
-intent rendered by the nokia.srlinux collection (md fork tag `v1.2.0-md.1`).
+intent rendered by `narrowin.srlinux_intent`, with transport and device modules
+from the supported `nokia.srlinux` collection.
 
 ## The design (derivation rules)
 

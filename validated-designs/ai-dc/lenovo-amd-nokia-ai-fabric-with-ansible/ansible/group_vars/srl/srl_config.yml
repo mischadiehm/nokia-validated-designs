@@ -1,5 +1,5 @@
 ---
-# Builds the srl_config consumed by nokia.srlinux.to_config_operations by
+# Builds the srl_config consumed by narrowin.srlinux_intent.to_config_operations by
 # deep-merging the layers below (later wins). One file per group contributes
 # a layer; a host is in exactly one fabric group.
 #   srl_common           - this file (empty by design: the three fabrics share nothing)

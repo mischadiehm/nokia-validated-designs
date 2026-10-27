@@ -4,9 +4,9 @@
 
 An Ansible-driven build of the 3-stage EVPN-VXLAN fabric (2 spines, 6 leaves,
 9 Linux endpoints) on [Containerlab](https://containerlab.dev) with Nokia
-SR Linux. Each node's intent lives as readable YAML; the nokia.srlinux
-collection renders it into native SR Linux operations and applies them in one
-validated transaction per node.
+SR Linux. Each node's intent lives as readable YAML; `narrowin.srlinux_intent`
+renders it into native SR Linux operations, while the supported `nokia.srlinux`
+collection supplies the transport and device modules.
 
 Sibling variants build the same topology with other tooling:
 [`with-eda`](../3-stage-evpn-vxlan-clab-with-eda/) (EDA-orchestrated) and
@@ -19,10 +19,11 @@ Sibling variants build the same topology with other tooling:
   the full service catalog (six anycast-IRB mac-vrfs, vrf1/vrf2, the vxlan
   map); host vars carry only the per-node remainder (ASN, system0, access
   ports, LAGs/ESIs, event-handler).
-- **The engine lives in the collection.** `requirements.yml` pins the
-  nokia.srlinux md fork (`v1.2.0-md.1`): renderer, schema-catalog guard,
-  pruning filters, and the `srl_config`/`srl_validate` roles. No lab-local
-  filter plugins.
+- **The engine lives in collections.** `requirements.yml` installs the
+  supported `nokia.srlinux` collection for transport/device modules and
+  `narrowin.srlinux_intent` for the renderer, schema-catalog guard, pruning
+  filters, and the `srl_config`/`srl_validate` roles. No lab-local filter
+  plugins.
 - **The without-eda configs are the oracle.** `uv run pytest` renders every
   node and asserts equality with `../3-stage-evpn-vxlan-clab-without-eda/configs/*.cli`,
   both directions (one upstream omission on leaf6 is documented in the test).
@@ -41,8 +42,8 @@ ansible/
   host_vars/<node>.yml            # per-node remainder; endpoint intent for s1..s9
   roles/linux_endpoint/           # bonds, VLANs, dummies, VRF devices, routes
 playbooks/
-  deploy.yml                      # nokia.srlinux.srl_config + linux_endpoint
-  validate.yml                    # nokia.srlinux.srl_validate + endpoint pings
+  deploy.yml                      # narrowin.srlinux_intent.srl_config + linux_endpoint
+  validate.yml                    # narrowin.srlinux_intent.srl_validate + endpoint pings
   render.yml                      # test helper for the fidelity pytest
 tests/test_cli_fidelity.py        # rendered intent == without-eda configs
 network-tests/3-stage-with-ansible.yml  # data-plane flow matrix
@@ -108,5 +109,5 @@ EVPN type-5 to the s5 loopbacks.
 ## Pointers
 
 - Plan and decision history: `/docs/plans/ansible-all-validated-designs-plan.md`
-- Engine: nokia.srlinux md fork, tag `v1.2.0-md.1`
+- Engine: `nokia.srlinux` plus `narrowin.srlinux_intent` from `requirements.yml`
 - Oracle: `../3-stage-evpn-vxlan-clab-without-eda/configs/*.cli`
