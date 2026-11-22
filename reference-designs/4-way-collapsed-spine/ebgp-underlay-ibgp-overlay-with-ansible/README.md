@@ -58,11 +58,9 @@ uv run tools/clab-network-tester --config network-tests/4-way-ebgp-ibgp-with-ans
 SR Linux image `25.10.1` (repo version policy; oracle authored on `25.3.2`).
 Login `admin` / `NokiaSrl1!`.
 
-Tests, syntax check and lint pass with `narrowin.srlinux_intent` `0.1.0`,
-and the offline upgrade check to `26.7.2` reports no breaking entries. The
-live run with this collection is still open: the lab VM had no free memory
-for its 7 SR Linux nodes. The design last ran live in June with the earlier
-collection.
+Deploy, validate and a second run without changes passed on SR Linux `25.10.1`
+and `26.7.2` with `narrowin.srlinux_intent` `0.1.0`, and the traffic test
+passed 5 of 5 on both.
 
 ## Pointers
 

@@ -39,7 +39,11 @@ SR Linux `25.10.1`, login `admin` / `NokiaSrl1!`.
 
 Tests, syntax check and lint pass with `narrowin.srlinux_intent` `0.1.0`, and
 the offline upgrade check to `26.7.2` reports no breaking entries. The 22 SR
-Linux nodes need about 40 GB, so this fabric has not run live.
+Linux nodes need about 44 GB, more than the lab VM has. One node of each group
+(`stripe1-leaf1`, `spine1`, `frontend-leaf1`, `frontend-spine1`) was deployed
+with `containerlab deploy --node-filter` and `--limit` on SR Linux `25.10.1`
+and `26.7.2`. The devices accepted every operation, and a second run reported
+no change. BGP state and traffic need the whole fabric and are not tested.
 
 SR Linux 26.3 changed how `local-preference` is written.
 `ansible/group_vars/<group>/srl_release_patches.yml` holds the new form, and
