@@ -10,6 +10,10 @@ clab-*
 # ignore Python bytecode
 **/__pycache__/
 *.pyc
+.DS_Store
+**/.DS_Store
+**/.venv/
+**/.collections/
 
 # python build artifacts
 *.egg-info/
