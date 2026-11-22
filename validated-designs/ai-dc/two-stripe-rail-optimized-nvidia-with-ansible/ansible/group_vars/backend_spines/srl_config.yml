@@ -481,7 +481,8 @@ srl_backend_spine_common:
                   local-preference:
                     set: 100
               match:
-                prefix-set: prefixset-dc1
+                prefix:
+                  prefix-set: prefixset-dc1
                 protocol: local
             '15':
               action:
@@ -504,6 +505,12 @@ srl_backend_spine_common:
               match:
                 protocol: bgp
     qos:
+      queues:
+        queue:
+          unicast-0:
+            queue-index: 0
+          unicast-6:
+            queue-index: 6
       buffer-management:
         buffer-allocation-profile:
           egress-backend-dc1-backend:
@@ -535,6 +542,7 @@ srl_backend_spine_common:
           egress-backend-dc1-backend:
             scheduler:
               '0':
+                priority: strict
                 input:
                   unicast-6:
                     queue-name: unicast-6

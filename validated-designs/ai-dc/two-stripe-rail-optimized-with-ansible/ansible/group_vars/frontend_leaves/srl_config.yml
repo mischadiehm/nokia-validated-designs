@@ -556,7 +556,8 @@ srl_frontend_leaf_common:
                 admin-state: enable
                 multipath:
                   allow-multiple-as: true
-                  maximum-paths: 64
+                  ebgp:
+                    maximum-paths: 64
                 evpn:
                   inter-as-vpn: true
                   rapid-update: true
@@ -636,7 +637,6 @@ srl_frontend_leaf_common:
               age-time: 2000
               send-refresh: 2000
             ip-duplication:
-              admin-state: enable
               hold-down-time: 10
               monitoring-window: 10
               num-moves: 4
@@ -668,7 +668,8 @@ srl_frontend_leaf_common:
                   local-preference:
                     set: 100
               match:
-                prefix-set: prefixset-dc1
+                prefix:
+                  prefix-set: prefixset-dc1
                 protocol: local
             '15':
               action:

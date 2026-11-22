@@ -49,8 +49,30 @@ def test_ipv6_multipath_matches_configlet(rendered):
     assert paths.get(f"{base}/ebgp/maximum-paths") == 2
 
 
+def test_frontend_evpn_and_policy_paths_match_srlinux_25_10(rendered):
+    paths = _paths(rendered["frontend-leaf1"])
+    evpn = "/network-instance[name=default]/protocols/bgp/afi-safi[afi-safi-name=evpn]/multipath"
+    assert paths.get(f"{evpn}/allow-multiple-as") == "true"
+    assert paths.get(f"{evpn}/ebgp/maximum-paths") == 64
+    assert f"{evpn}/maximum-paths" not in paths
+
+    policy = "/routing-policy/policy[name=ebgp-isl-export-policy-dc1]/statement[name=10]/match"
+    assert paths.get(f"{policy}/prefix/prefix-set") == "prefixset-dc1"
+    assert f"{policy}/prefix-set" not in paths
+
+
+def test_backend_leaf_export_policy_advertises_rail_prefixes(rendered):
+    paths = _paths(rendered["stripe1-leaf1"])
+    prefix = "/routing-policy/prefix-set[name=prefixset-dc1]/prefix"
+    assert f"{prefix}[ip-prefix=192.0.2.0/24][mask-length-range=32..32]" in paths
+    assert f"{prefix}[ip-prefix=fd00:100::/32][mask-length-range=96..96]" in paths
+    assert f"{prefix}[ip-prefix=fd00:200::/32][mask-length-range=96..96]" in paths
+
+
 def test_qos_configlets_rendered_verbatim(rendered):
     paths = _paths(rendered["spine1"])
+    assert str(paths.get("/qos/queues/queue[name=unicast-0]/queue-index")) == "0"
+    assert str(paths.get("/qos/queues/queue[name=unicast-6]/queue-index")) == "6"
     assert paths.get(
         "/qos/buffer-management/buffer-allocation-profile[name=egress-backend-dc1-backend]/"
         "queues/queue[queue-name=unicast-0]/maximum-burst-size"
@@ -65,6 +87,7 @@ def test_qos_configlets_rendered_verbatim(rendered):
         "/qos/linecard[slot=1]/forwarding-complex[name=0]/input/pfc-buffer-reservation"
     ) == 10
     sched = "/qos/scheduler-policies/scheduler-policy[name=egress-backend-dc1-backend]"
+    assert paths.get(f"{sched}/scheduler[sequence=0]/priority") == "strict"
     assert paths.get(f"{sched}/scheduler[sequence=0]/input[id=unicast-6]/peak-rate-percent") == 80
     assert paths.get(f"{sched}/scheduler[sequence=1]/input[id=unicast-0]/weight") == 10
 
@@ -102,5 +125,7 @@ def test_frontend_storage_vnet_with_twelve_esi_lags(rendered):
     lag_members = [p for p in paths if p.startswith("/network-instance[name=mac-vrf-storage]/interface[name=lag")]
     assert len(lag_members) == 12
     proxy = "/network-instance[name=mac-vrf-storage]/bridge-table/proxy-arp"
+    assert paths.get(f"{proxy}/admin-state") == "enable"
     assert paths.get(f"{proxy}/dynamic-learning/age-time") == 2000
     assert paths.get(f"{proxy}/ip-duplication/num-moves") == 4
+    assert f"{proxy}/ip-duplication/admin-state" not in paths

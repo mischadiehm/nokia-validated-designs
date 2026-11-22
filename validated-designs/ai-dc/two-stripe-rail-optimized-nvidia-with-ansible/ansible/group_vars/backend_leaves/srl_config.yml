@@ -140,6 +140,10 @@ srl_backend_leaf_common:
           prefix:
             192.0.2.0/24:
               mask-length-range: 32..32
+            fd00:100::/32:
+              mask-length-range: 96..96
+            fd00:200::/32:
+              mask-length-range: 96..96
       policy:
         ebgp-isl-export-policy-dc1:
           default-action:
@@ -152,7 +156,8 @@ srl_backend_leaf_common:
                   local-preference:
                     set: 100
               match:
-                prefix-set: prefixset-dc1
+                prefix:
+                  prefix-set: prefixset-dc1
                 protocol: local
             '15':
               action:
@@ -175,6 +180,12 @@ srl_backend_leaf_common:
               match:
                 protocol: bgp
     qos:
+      queues:
+        queue:
+          unicast-0:
+            queue-index: 0
+          unicast-6:
+            queue-index: 6
       buffer-management:
         buffer-allocation-profile:
           egress-backend-dc1-backend:
@@ -206,6 +217,7 @@ srl_backend_leaf_common:
           egress-backend-dc1-backend:
             scheduler:
               '0':
+                priority: strict
                 input:
                   unicast-6:
                     queue-name: unicast-6
