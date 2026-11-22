@@ -7,9 +7,9 @@ collections:
   - name: nokia.srlinux
     version: "1.1.1"
     source: https://galaxy.ansible.com
-  - name: git@github.com:narrowin/ansible-collection-srlinux-intent.git
+  - name: git@github.com:narrowin/ansible-collection-nokia-srlinux-intent.git
     type: git
-    version: "2f6f2d9445fbcb400e38a76c67040183ca3e0393"
+    version: "7b75a54cf64351137d5eb694c7627e8086ea3451"
   - name: ansible.netcommon
     version: "5.3.0"
     source: https://galaxy.ansible.com

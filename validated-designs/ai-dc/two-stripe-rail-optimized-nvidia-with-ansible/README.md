@@ -37,5 +37,14 @@ uv run ansible-playbook playbooks/deploy.yml                 # idempotency: chan
 
 SR Linux `25.10.1`, login `admin` / `NokiaSrl1!`.
 
+Tests, syntax check and lint pass with `narrowin.srlinux_intent` `0.1.0`, and
+the offline upgrade check to `26.7.2` reports no breaking entries. The 22 SR
+Linux nodes need about 40 GB, so this fabric has not run live.
+
+SR Linux 26.3 changed how `local-preference` is written.
+`ansible/group_vars/<group>/srl_release_patches.yml` holds the new form, and
+the `srl_config` role applies it only on 26.3 and newer, so one inventory
+serves both releases.
+
 Pointers: plan `/docs/plans/ansible-all-validated-designs-plan.md`; manifests
 `../two-stripe-rail-optimized-nvidia/eda-manifests/`.

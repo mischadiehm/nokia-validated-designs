@@ -18,7 +18,7 @@ import pytest
 
 from conftest import LAB_ROOT, render_all_nodes
 
-from ansible_collections.narrowin.srlinux_intent.plugins.module_utils.to_config_operations.renderer import (
+from ansible_collections.narrowin.srlinux_intent.plugins.plugin_utils.to_config_operations.renderer import (
     operations_from_config,
 )
 
@@ -31,7 +31,7 @@ NODES = ["spine1", "spine2", "leaf1", "leaf2", "leaf3", "leaf4", "leaf5", "leaf6
 PRESENCE_FLAGS = {"interface-standby-signaling-on-non-df"}
 
 # Documented, reviewed deviations from the oracle. Upstream leaf6.cli omits
-# advertise-arp-nd-only-with-mac-table-entry on macvrf-v50 only (5/6 mac-vrfs
+# the mac-ip advertise leaf on macvrf-v50 only (5/6 mac-vrfs
 # carry it; every other leaf has all six). The Ansible intent keeps the
 # service catalog uniform across leaves, so this one rendered-but-not-in-cli
 # pair is accepted on leaf6.
@@ -39,12 +39,36 @@ ALLOWED_EXTRA = {
     "leaf6": {
         (
             "/network-instance[name=macvrf-v50]/protocols/bgp-evpn/"
-            "bgp-instance[id=1]/routes/bridge-table/mac-ip/"
-            "advertise-arp-nd-only-with-mac-table-entry",
+                        "bgp-instance[id=1]/routes/bridge-table/mac-ip/"
+                        "advertise",
+            "true",
+        ),
+        (
+            "/network-instance[name=macvrf-v50]/protocols/bgp-evpn/"
+                        "bgp-instance[id=1]/routes/bridge-table/mac-ip/"
+                        "advertise-arp-nd-extended-community",
             "true",
         ),
     },
 }
+
+
+# Nokia's 25.10 update of the collapsed-spine design replaced this mac-ip leaf,
+# which SR Linux 26.x removed, with the two leaves below. The intent uses the
+# replacement in every design, so the oracle is read the same way.
+OLD_MAC_IP = " mac-ip advertise-arp-nd-only-with-mac-table-entry true"
+NEW_MAC_IP = (" mac-ip advertise true", " mac-ip advertise-arp-nd-extended-community true")
+
+
+def _oracle_lines(node: str):
+    """Yield the stripped oracle lines with the old mac-ip leaf replaced."""
+    for line in (ORACLE_DIR / f"{node}.cli").read_text().splitlines():
+        line = line.strip()
+        if line.endswith(OLD_MAC_IP):
+            stem = line[: -len(OLD_MAC_IP)]
+            yield from (stem + new for new in NEW_MAC_IP)
+        else:
+            yield line
 
 
 def _coerce(token: str):
@@ -113,7 +137,7 @@ def _cli_pairs(node: str) -> set:
     # entries under the same parent (e.g. network-instance interfaces) would
     # otherwise clobber each other in a naive tree merge.
     pairs: set = set()
-    for line in (ORACLE_DIR / f"{node}.cli").read_text().splitlines():
+    for line in _oracle_lines(node):
         line = line.strip()
         if not line.startswith("set / "):
             continue

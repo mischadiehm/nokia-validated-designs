@@ -1,0 +1,52 @@
+---
+# SR Linux 26.3 writes local-preference as `operation` and `value`; earlier
+# releases accept only `set`. srl_config applies this patch on 26.3 and newer.
+srl_config_from_release:
+  '26.3':
+    omit:
+      routing-policy:
+        policy:
+          ebgp-isl-export-policy-dc1:
+            statement:
+              '10':
+                action:
+                  bgp:
+                    local-preference:
+                      set: {}
+              '15':
+                action:
+                  bgp:
+                    local-preference:
+                      set: {}
+          ebgp-isl-import-policy-dc1:
+            statement:
+              '10':
+                action:
+                  bgp:
+                    local-preference:
+                      set: {}
+    update:
+      routing-policy:
+        policy:
+          ebgp-isl-export-policy-dc1:
+            statement:
+              '10':
+                action:
+                  bgp:
+                    local-preference:
+                      operation: set
+                      value: 100
+              '15':
+                action:
+                  bgp:
+                    local-preference:
+                      operation: set
+                      value: 100
+          ebgp-isl-import-policy-dc1:
+            statement:
+              '10':
+                action:
+                  bgp:
+                    local-preference:
+                      operation: set
+                      value: 100

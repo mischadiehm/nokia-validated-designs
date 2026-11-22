@@ -36,3 +36,9 @@ uv run tools/clab-network-tester --config network-tests/4-way-ospf-ibgp-with-ans
 SR Linux image `25.10.1`; login `admin` / `NokiaSrl1!`. Layout, gates and
 pointers match the eBGP sibling; plan:
 `/docs/plans/ansible-reference-designs-plan.md`.
+
+Tests, syntax check and lint pass with `narrowin.srlinux_intent` `0.1.0`,
+and the offline upgrade check to `26.7.2` reports no breaking entries. The
+live run with this collection is still open: the lab VM had no free memory
+for its 7 SR Linux nodes. The design last ran live in June with the earlier
+collection.

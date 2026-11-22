@@ -120,7 +120,8 @@ srl_host:
                 routes:
                   bridge-table:
                     mac-ip:
-                      advertise-arp-nd-only-with-mac-table-entry: true
+                      advertise: true
+                      advertise-arp-nd-extended-community: true
           bgp-vpn:
             bgp-instance:
               '1':
@@ -146,7 +147,8 @@ srl_host:
                 routes:
                   bridge-table:
                     mac-ip:
-                      advertise-arp-nd-only-with-mac-table-entry: true
+                      advertise: true
+                      advertise-arp-nd-extended-community: true
           bgp-vpn:
             bgp-instance:
               '1':
@@ -172,7 +174,8 @@ srl_host:
                 routes:
                   bridge-table:
                     mac-ip:
-                      advertise-arp-nd-only-with-mac-table-entry: true
+                      advertise: true
+                      advertise-arp-nd-extended-community: true
           bgp-vpn:
             bgp-instance:
               '1':

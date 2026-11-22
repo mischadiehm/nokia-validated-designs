@@ -75,6 +75,15 @@ uv run tools/clab-network-tester --config network-tests/3-stage-with-ansible.yml
 SR Linux image `25.10.1` (repo version policy; the upstream NVD was authored
 on `24.10.2`). Login `admin` / `NokiaSrl1!`.
 
+Deploy, validate and a second run without changes passed on SR Linux `25.10.1`
+and `26.7.2` with `narrowin.srlinux_intent` `0.1.0`, and the traffic test
+passed 10 of 10 on both.
+
+SR Linux 26.3 changed how `local-preference` is written.
+`ansible/group_vars/srl/srl_release_patches.yml` holds the new form, and the
+`srl_config` role applies it only on 26.3 and newer, so one inventory serves
+both releases.
+
 > **Note:** endpoint config is ephemeral - a containerlab redeploy wipes it,
 > so re-run `deploy.yml` (or `--limit linux_clients`) after one. SR Linux
 > config persists across redeploys.
