@@ -388,7 +388,7 @@ uv run ansible-playbook narrowin.srlinux_intent.upgrade_check \
 ```
 
 Nokia publishes no catalog for 25.10.4, so the check starts from 25.10.2. The
-collection's [upgrade guide](https://github.com/narrowin/ansible-collection-nokia-srlinux-intent/blob/13b37ad4e9ebd575fc050bed5ae042e1ffaf938a/docs/upgrading-srlinux.md)
+collection's [upgrade guide](https://github.com/narrowin/ansible-collection-nokia-srlinux-intent/blob/v0.1.0/docs/upgrading-srlinux.md)
 explains the report and the patch format.
 
 ### Design rules
