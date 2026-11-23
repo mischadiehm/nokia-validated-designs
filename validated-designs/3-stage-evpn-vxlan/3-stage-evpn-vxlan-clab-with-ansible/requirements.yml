@@ -9,7 +9,7 @@ collections:
     source: https://galaxy.ansible.com
   - name: git@github.com:narrowin/ansible-collection-nokia-srlinux-intent.git
     type: git
-    version: "b4393ee58b09cd3c0106a816811c589348cf1bf5"
+    version: "13b37ad4e9ebd575fc050bed5ae042e1ffaf938a"
   - name: ansible.netcommon
     version: "8.8.0"
     source: https://galaxy.ansible.com
