@@ -77,8 +77,12 @@ uv run ansible-playbook playbooks/validate.yml              # assert state
 uv run ansible-playbook playbooks/deploy.yml                # idempotency: changed=0
 ```
 
-Tested with SR Linux `25.10.4` and `26.7.2`, `ansible-core` `2.21.0`,
-`nokia.srlinux` `1.1.1` and `narrowin.srlinux_intent` `0.1.0`.
+The topology runs SR Linux `26.7.2`, the latest release; Nokia's design runs
+`25.10.4`. Tested on `26.7.2` with `ansible-core` `2.22.0`,
+`ansible.netcommon` `8.8.0`, `community.docker` `5.4.0`, `nokia.srlinux`
+`1.1.1` and `narrowin.srlinux_intent` `0.1.0` (deploy, validate, a second run
+without changes, traffic 214/214), and earlier on `25.10.4` and `26.7.2` with
+`ansible-core` `2.21.0`.
 SR Linux login: `admin` / `NokiaSrl1!` (e.g. `ssh admin@172.21.21.101`).
 
 > **Note:** Linux endpoint config is ephemeral — a `containerlab` redeploy wipes
@@ -384,7 +388,7 @@ uv run ansible-playbook narrowin.srlinux_intent.upgrade_check \
 ```
 
 Nokia publishes no catalog for 25.10.4, so the check starts from 25.10.2. The
-collection's [upgrade guide](https://github.com/narrowin/ansible-collection-nokia-srlinux-intent/blob/7b75a54cf64351137d5eb694c7627e8086ea3451/docs/upgrading-srlinux.md)
+collection's [upgrade guide](https://github.com/narrowin/ansible-collection-nokia-srlinux-intent/blob/b4393ee58b09cd3c0106a816811c589348cf1bf5/docs/upgrading-srlinux.md)
 explains the report and the patch format.
 
 ### Design rules

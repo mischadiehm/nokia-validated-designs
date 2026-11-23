@@ -76,7 +76,7 @@ uv run ansible-playbook playbooks/validate.yml
 uv run ansible-playbook playbooks/deploy.yml                 # idempotency: changed=0
 ```
 
-SR Linux image `25.10.1` (matches upstream). Login `admin` / `NokiaSrl1!`.
+SR Linux image `26.7.2` (Nokia's design runs `25.10.1`). Login `admin` / `NokiaSrl1!`.
 
 Tests, syntax check and lint pass with `narrowin.srlinux_intent` `0.1.0`, and
 the offline upgrade check to `26.7.2` reports no breaking entries. The 22 SR

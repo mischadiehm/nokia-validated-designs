@@ -73,8 +73,8 @@ uv run ansible-playbook playbooks/validate.yml               # incl. cross-rail 
 uv run ansible-playbook playbooks/deploy.yml                 # idempotency: changed=0
 ```
 
-SR Linux image `25.10.1` (repo version policy; upstream was tested on
-`25.3.2` with EDA 25.4.2). Login `admin` / `NokiaSrl1!`.
+SR Linux image `26.7.2`, the latest release (Nokia's design runs `25.10.1`;
+upstream was tested on `25.3.2` with EDA 25.4.2). Login `admin` / `NokiaSrl1!`.
 
 Deploy, validate and a second run without changes passed on SR Linux `25.10.1`
 and `26.7.2` with `narrowin.srlinux_intent` `0.1.0`.

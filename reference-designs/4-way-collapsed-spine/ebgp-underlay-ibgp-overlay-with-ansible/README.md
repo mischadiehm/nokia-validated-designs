@@ -55,7 +55,8 @@ uv run ansible-playbook playbooks/deploy.yml                 # idempotency: chan
 uv run tools/clab-network-tester --config network-tests/4-way-ebgp-ibgp-with-ansible.yml
 ```
 
-SR Linux image `25.10.1` (repo version policy; oracle authored on `25.3.2`).
+SR Linux image `26.7.2`, the latest release (Nokia's design runs `25.10.1`;
+oracle authored on `25.3.2`).
 Login `admin` / `NokiaSrl1!`.
 
 Deploy, validate and a second run without changes passed on SR Linux `25.10.1`

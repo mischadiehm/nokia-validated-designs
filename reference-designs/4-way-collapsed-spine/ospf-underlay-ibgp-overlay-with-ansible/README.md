@@ -33,7 +33,7 @@ uv run ansible-playbook playbooks/deploy.yml                 # idempotency: chan
 uv run tools/clab-network-tester --config network-tests/4-way-ospf-ibgp-with-ansible.yml
 ```
 
-SR Linux image `25.10.1`; login `admin` / `NokiaSrl1!`. Layout, gates and
+SR Linux image `26.7.2` (Nokia's design runs `25.10.1`); login `admin` / `NokiaSrl1!`. Layout, gates and
 pointers match the eBGP sibling; plan:
 `/docs/plans/ansible-reference-designs-plan.md`.
 

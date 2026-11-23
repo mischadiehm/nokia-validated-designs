@@ -54,8 +54,8 @@ uv run ansible-playbook playbooks/deploy.yml                 # idempotency: chan
 uv run tools/clab-network-tester --config network-tests/3-stage-ospf-ibgp-with-ansible.yml
 ```
 
-SR Linux image `25.10.1` (repo version policy; the oracle was authored on
-`25.3.2`). Login `admin` / `NokiaSrl1!`.
+SR Linux image `26.7.2`, the latest release (Nokia's design runs `25.10.1`;
+the oracle was authored on `25.3.2`). Login `admin` / `NokiaSrl1!`.
 
 Deploy, validate and a second run without changes passed on SR Linux `25.10.1`
 and `26.7.2` with `narrowin.srlinux_intent` `0.1.0`, and the traffic test
